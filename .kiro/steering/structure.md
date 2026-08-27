@@ -12,7 +12,7 @@ core/analyze.py      # 월간 집계
 core/judge.py        # 판정 룰 (결정적 조건문)
 core/verdict.py      # Bedrock 판결문 생성
 db.py                # SQLite
-data/seed.py         # 더미 시드 (8월 40건, 죄명 8종 재현)
+data/seed.py         # 더미 시드 (8월, 닉네임 8개 — 각 죄명 임계값 충족 분포, 총 60건 내외)
 samples/             # 합성 영수증 3종 (기존)
 tests/
 ```
