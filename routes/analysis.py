@@ -19,11 +19,12 @@ _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 @router.get("")
-def get_analysis(month: str = Query(..., description="조회 월 (YYYY-MM)")):
+def get_analysis(month: str | None = Query(None, description="조회 월 (YYYY-MM)")):
     """GET /api/analysis?month=YYYY-MM — 월 분석 통합 응답 (docs/05 §12)"""
 
     # ─── month 형식 검증 ───
-    if not _MONTH_RE.match(month):
+    # 필수(...)로 두면 FastAPI가 422를 내므로 직접 검증해 400으로 통일
+    if not month or not _MONTH_RE.match(month):
         return JSONResponse(
             status_code=400,
             content={
