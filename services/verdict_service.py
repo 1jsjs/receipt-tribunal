@@ -5,4 +5,114 @@
 - MOCK_AI=1이면 고정 문장 반환 (로컬 개발용)
 - 호출 실패 시 fallbackReasonings 템플릿 사용 (빈 응답 금지)
 """
-# TODO(feat/analysis)
+
+import json
+import os
+
+MODEL_ID = "global.anthropic.claude-sonnet-5"
+
+
+def _build_prompt(stats: dict, consumer_type: dict, judgment: dict) -> str:
+    """Bedrock에 보낼 프롬프트를 조립한다."""
+    label = consumer_type["label"]
+    crime = judgment["crime"]
+    verdict = judgment["verdict"]
+    total_expense = stats.get("totalExpense", 0)
+    payment_count = stats.get("paymentCount", 0)
+    evidence_lines = "\n".join(f"- {e}" for e in judgment.get("evidence", []))
+
+    return (
+        "당신은 위트 있는 소비 재판소 판사입니다. "
+        "아래 피고인의 소비 유형과 증거를 바탕으로, 판결 이유를 2~3문장으로 작성하세요.\n\n"
+        "규칙:\n"
+        "- 구체적 수치를 1개 이상 인용할 것\n"
+        "- 존댓말 판사 어조\n"
+        "- JSON·마크다운 없이 순수 텍스트만 출력\n"
+        "- 2~3문장으로 간결하게\n\n"
+        f"소비 유형: {label}\n"
+        f"죄명: {crime}\n"
+        f"판결: {verdict}\n"
+        f"총지출: {total_expense:,}원\n"
+        f"결제 건수: {payment_count}건\n"
+        f"핵심 증거:\n{evidence_lines}\n\n"
+        "위 정보를 바탕으로 판결 이유를 작성하세요."
+    )
+
+
+def _mock_reasoning(stats: dict, consumer_type: dict) -> str:
+    """MOCK_AI=1일 때 반환하는 고정 문장."""
+    label = consumer_type["label"]
+    total = stats.get("totalExpense", 0)
+    count = stats.get("paymentCount", 0)
+    return (
+        f"본 재판부는 피고인의 소비 내역을 면밀히 검토하였습니다. "
+        f"총 {total:,}원, {count}건의 결제 기록을 분석한 결과, "
+        f"'{label}' 유형에 해당하는 소비 패턴이 명확히 확인됩니다."
+    )
+
+
+def _call_bedrock(prompt: str) -> str:
+    """Bedrock Claude를 호출해 reasoning 텍스트를 반환한다.
+
+    region_name을 지정하지 않아 환경변수 AWS_DEFAULT_REGION을 사용한다.
+    실패 시 예외를 그대로 raise (호출 측에서 처리).
+    """
+    import boto3
+
+    # region_name 미지정 → 환경변수 AWS_DEFAULT_REGION 사용
+    client = boto3.client("bedrock-runtime")
+
+    body = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 512,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+    })
+
+    response = client.invoke_model(
+        modelId=MODEL_ID,
+        contentType="application/json",
+        accept="application/json",
+        body=body,
+    )
+
+    result = json.loads(response["body"].read())
+    # Claude 응답에서 텍스트 추출
+    text = result["content"][0]["text"].strip()
+    return text
+
+
+def generate_reasoning(stats: dict, consumer_type: dict, judgment: dict) -> str:
+    """판결문 이유(reasoning)를 생성한다.
+
+    Parameters
+    ----------
+    stats : dict
+        calculate_monthly_stats() 반환값
+    consumer_type : dict
+        {"code": str, "label": str}
+    judgment : dict
+        build_judgment() 반환값 (crime, evidence, verdict, reasoning, sentence)
+
+    Returns
+    -------
+    str  2~3문장의 판결 이유. 어떤 경우에도 예외를 밖으로 던지지 않는다.
+    """
+    # MOCK_AI=1이면 고정 문장 반환 (로컬 개발용)
+    if os.environ.get("MOCK_AI") == "1":
+        return _mock_reasoning(stats, consumer_type)
+
+    # 실호출 (1회 재시도)
+    prompt = _build_prompt(stats, consumer_type, judgment)
+    for attempt in range(2):
+        try:
+            return _call_bedrock(prompt)
+        except Exception:
+            if attempt == 0:
+                continue
+            # 최종 실패 → 폴백
+            break
+
+    # 폴백: judgment에 이미 들어있는 fallback reasoning 사용
+    return judgment.get("reasoning", "")
