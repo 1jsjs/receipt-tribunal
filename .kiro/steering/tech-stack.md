@@ -52,3 +52,10 @@ inclusion: always
 - Bedrock 응답은 형식 검증 후 사용, 실패 시 1회 재시도, 최종 실패 시 사용자에게 재시도 안내 (빈 화면 금지).
 - 카드번호 등 개인정보는 인식 단계에서 마스킹한다.
 - 주요 함수·API 엔드포인트에 한국어 주석을 남긴다 (비전공 팀원이 읽을 수 있게).
+
+## 입력 파이프라인 (최종 확정 — PDF/엑셀 온리)
+- 사용자 입력은 지출내역 파일(PDF/xlsx/csv) 업로드만이다. 영수증 사진 업로드는 P1 — 지금 만들지 않는다.
+- 엑셀/CSV: pandas+openpyxl로 원시 셀 추출 / PDF: pdfplumber로 텍스트 추출 → Bedrock 텍스트 호출로 표준 JSON 정규화·분류(지출만, 입금·취소·카드대금 제외, 콤마 제거, 애매하면 needs_review). 은행별 파서 하드코딩 금지 — 포맷 해석은 LLM 담당.
+- 텍스트 없는 스캔형 PDF만 pypdfium2 렌더 → 기존 analyze_receipt_image 패턴으로 폴백.
+- 필요 패키지: pandas, openpyxl, pdfplumber, pypdfium2 (서버에서 appenv/bin/pip로 설치).
+- 업로드 원본 파일은 S3 evidence/ 경로에 보관한다.
