@@ -1,0 +1,9 @@
+# 절대 커밋 금지 — EC2 접속 키
+*.pem
+
+# 런타임 산출물
+faiss_index/
+downloaded_context.txt
+streamlit.log
+__pycache__/
+.env
