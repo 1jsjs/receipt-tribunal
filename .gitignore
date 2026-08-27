@@ -7,3 +7,8 @@ downloaded_context.txt
 streamlit.log
 __pycache__/
 .env
+
+# 런타임 DB
+data.db
+*.db-wal
+*.db-shm
