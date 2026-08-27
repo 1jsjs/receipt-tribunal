@@ -1,9 +1,46 @@
-# 절대 커밋 금지 — EC2 접속 키
+# ═══ 비밀·자격증명 — 절대 커밋 금지 ═══
 *.pem
+*.key
+*.p12
+.env
+.env.*
+*credentials*
+*_accounts*.xlsx
+hackathon_team_accounts*
 
-# 런타임 산출물
+# ═══ 데이터베이스 (런타임 생성물) ═══
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# ═══ Python ═══
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+appenv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ═══ 로그·런타임 산출물 ═══
+*.log
+nohup.out
 faiss_index/
 downloaded_context.txt
-streamlit.log
-__pycache__/
-.env
+
+# ═══ Node (프론트 도구 사용 대비) ═══
+node_modules/
+dist/
+
+# ═══ OS / 에디터 ═══
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ⚠️ .kiro/ 폴더는 대회 제출 요건이므로 절대 무시하지 말 것 (커밋 대상)
