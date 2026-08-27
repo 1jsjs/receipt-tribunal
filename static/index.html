@@ -4,9 +4,138 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>영수증 소비 재판소</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>⚖️ 영수증 소비 재판소</h1>
-  <p>스켈레톤 — 프론트 구현 예정 (docs/05 §16, TASK-F001~F013)</p>
+  <div class="wrap">
+    <header>
+      <h1>⚖️ 영수증 소비 재판소</h1>
+      <p>한 달치 소비를 제출하면, 통장이 당신을 고소합니다</p>
+    </header>
+
+    <!-- TASK-F001 탭 네비게이션 (화면 3개: docs/05 §16) -->
+    <nav>
+      <button data-view="input" class="active">소비 제출</button>
+      <button data-view="list">증거 목록</button>
+      <button data-view="result">판결</button>
+    </nav>
+
+    <!-- ─── 화면 1: 입력 (F002·F003) ─── -->
+    <section id="view-input">
+      <div class="card">
+        <h2>증거 제출</h2>
+        <form id="expense-form">
+          <div class="field">
+            <label for="storeName">상호명</label>
+            <input id="storeName" name="storeName" placeholder="예) 쿠팡이츠" maxlength="100" required>
+          </div>
+          <div class="field">
+            <label for="date">날짜</label>
+            <input id="date" name="date" type="date" required>
+          </div>
+          <div class="field">
+            <label for="amount">금액 (원)</label>
+            <input id="amount" name="amount" type="number" min="1" step="1" placeholder="18000" required>
+          </div>
+          <div class="field">
+            <label for="category">카테고리</label>
+            <select id="category" name="category"></select>
+          </div>
+          <div class="field">
+            <label>거래 유형</label>
+            <div class="radios">
+              <label><input type="radio" name="transactionType" value="EXPENSE" checked> 소비</label>
+              <label><input type="radio" name="transactionType" value="TRANSFER"> 이체</label>
+            </div>
+          </div>
+          <button type="submit" class="primary" id="submit-btn">증거로 제출하기</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>재판 안내</h2>
+        <p style="font-size:14px;color:var(--muted)">
+          이체는 기록만 되고 <b style="color:var(--text)">지출 분석에서는 제외</b>됩니다.
+          한 달치를 제출한 뒤 <b style="color:var(--text)">[판결]</b> 탭에서 선고를 받으세요.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── 화면 2: 소비 내역 (F004~F007) ─── -->
+    <section id="view-list" hidden>
+      <div class="month-bar">
+        <input id="month-list" type="month">
+        <button class="primary" style="width:auto;padding:12px 18px" id="go-judge">판결받기</button>
+      </div>
+      <div class="card">
+        <div class="total-line">
+          <span style="color:var(--muted);font-size:14px">이 달 지출 <span id="list-count">0</span>건</span>
+          <span class="amt" id="list-total">0원</span>
+        </div>
+        <div id="list-body"></div>
+      </div>
+    </section>
+
+    <!-- ─── 화면 3: 분석 결과 (F008~F013) ─── -->
+    <section id="view-result" hidden>
+      <div class="month-bar">
+        <input id="month-result" type="month">
+        <button class="primary" style="width:auto;padding:12px 18px" id="re-judge">다시 판결</button>
+      </div>
+      <div id="result-body"></div>
+    </section>
+  </div>
+
+  <!-- 수정 모달 (F006) -->
+  <div class="backdrop" id="edit-modal" hidden>
+    <div class="modal">
+      <h3>증거 수정</h3>
+      <form id="edit-form">
+        <input type="hidden" id="edit-id">
+        <div class="field"><label for="edit-storeName">상호명</label>
+          <input id="edit-storeName" maxlength="100" required></div>
+        <div class="field"><label for="edit-date">날짜</label>
+          <input id="edit-date" type="date" required></div>
+        <div class="field"><label for="edit-amount">금액 (원)</label>
+          <input id="edit-amount" type="number" min="1" step="1" required></div>
+        <div class="field"><label for="edit-category">카테고리</label>
+          <select id="edit-category"></select></div>
+        <div class="field"><label>거래 유형</label>
+          <div class="radios">
+            <label><input type="radio" name="edit-tt" value="EXPENSE"> 소비</label>
+            <label><input type="radio" name="edit-tt" value="TRANSFER"> 이체</label>
+          </div></div>
+        <div class="modal-acts">
+          <button type="button" class="cancel" data-close>취소</button>
+          <button type="submit" class="ok">수정하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 삭제 확인 모달 (F007 / P002) -->
+  <div class="backdrop" id="del-modal" hidden>
+    <div class="modal">
+      <h3>증거를 폐기할까요?</h3>
+      <p style="font-size:14px;color:var(--muted)" id="del-desc"></p>
+      <div class="modal-acts">
+        <button type="button" class="cancel" data-close>취소</button>
+        <button type="button" class="danger" id="del-confirm">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MZ 리액션 팝업 (F013) -->
+  <div class="backdrop" id="mz-modal" hidden>
+    <div class="modal mz">
+      <div class="face">🫵</div>
+      <div class="msg" id="mz-msg"></div>
+      <div class="modal-acts">
+        <button type="button" class="ok" data-close>인정합니다</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
 </body>
 </html>
