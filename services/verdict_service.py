@@ -108,7 +108,8 @@ def generate_reasoning(stats: dict, consumer_type: dict, judgment: dict) -> str:
     for attempt in range(2):
         try:
             return _call_bedrock(prompt)
-        except Exception:
+        except Exception as e:
+            print(f"[verdict] Bedrock 호출 실패({attempt+1}차): {e}")
             if attempt == 0:
                 continue
             # 최종 실패 → 폴백
