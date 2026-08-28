@@ -3,6 +3,7 @@
 구현 기준: docs/05 §9(API)·§10(검증)·§4(필드명 계약 — camelCase 응답)
 """
 import re
+from datetime import datetime
 
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
@@ -61,15 +62,23 @@ def _validate_expense_body(body: dict) -> tuple[dict | None, JSONResponse | None
     category = body.get("category")
     transaction_type = body.get("transactionType")
 
-    # storeName: 문자열, 공백만 금지, 최대 100자
+    # storeName: 문자열, 공백만 금지, strip 후 최대 100자, strip한 값을 저장
     if not isinstance(store_name, str) or store_name.strip() == "":
         return None, _error("INVALID_STORE_NAME", "storeName은 비어 있을 수 없습니다.", 400)
+    store_name = store_name.strip()
     if len(store_name) > 100:
         return None, _error("INVALID_STORE_NAME", "storeName은 최대 100자입니다.", 400)
 
-    # date: YYYY-MM-DD 형식 (문자열 그대로 사용, datetime 변환 안 함)
+    # date: YYYY-MM-DD 형식 + 실재하는 날짜.
+    # 형식만 보는 정규식 통과 후, strptime으로 실제 존재하는 날짜인지 검증
+    # (2026-02-31, 2026-13-45 같은 유령 날짜 거부).
+    # 파싱은 검증 용도로만 쓰고, 저장은 원래 문자열 그대로 한다 (UTC 하루 밀림 방지).
     if not isinstance(date, str) or not _DATE_RE.match(date):
         return None, _error("INVALID_DATE", "date는 YYYY-MM-DD 형식이어야 합니다.", 400)
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return None, _error("INVALID_DATE", "date는 실재하는 날짜여야 합니다.", 400)
 
     # amount: 정수, 1 이상 (bool은 int의 서브클래스이므로 배제)
     if isinstance(amount, bool) or not isinstance(amount, int):
