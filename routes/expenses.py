@@ -248,3 +248,31 @@ def update_expense(expense_id: str, body=Body(None)):
         conn.close()
 
     return {"success": True, "data": _row_to_expense(row)}
+
+
+@router.delete("/{expense_id}")
+def delete_expense(expense_id: str):
+    """DELETE /api/expenses/{id} — 삭제 후 {"success": true} 반환. (docs/05 §9)
+
+    대상 없으면 404. SQL DELETE는 대상이 없어도 에러를 안 내므로,
+    반드시 먼저 SELECT로 존재를 확인한 뒤 삭제한다.
+    """
+    parsed_id, error = _parse_id(expense_id)
+    if error is not None:
+        return error
+
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM expenses WHERE id = ?", (parsed_id,)
+        ).fetchone()
+        if existing is None:
+            return _error("NOT_FOUND", "해당 id의 소비 내역이 없습니다.", 404)
+
+        conn.execute("DELETE FROM expenses WHERE id = ?", (parsed_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 204가 아니라 200 + {"success": true} (data 키 없음, 명세 그대로)
+    return {"success": True}
