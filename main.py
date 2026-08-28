@@ -10,6 +10,7 @@ from pathlib import Path
 from db import init_db
 from routes.expenses import router as expenses_router
 from routes.analysis import router as analysis_router
+from routes.imports import router as imports_router
 
 app = FastAPI(title="영수증 소비 재판소")
 
@@ -29,6 +30,7 @@ def health():
 # ─── API 라우터 등록 (static 마운트보다 반드시 먼저) ───
 app.include_router(expenses_router)   # feat/crud 담당
 app.include_router(analysis_router)   # feat/analysis 담당
+app.include_router(imports_router)    # 지출내역 파일 업로드
 
 # ─── 정적 파일 서빙 — 반드시 파일 맨 마지막 ───
 _static = Path(__file__).parent / "static"
