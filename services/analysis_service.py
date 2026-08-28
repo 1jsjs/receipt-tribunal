@@ -1,6 +1,6 @@
 """월간 통계 계산 — TASK-B009·B010 (docs/05 §11). EXPENSE만 대상, TRANSFER 제외."""
 
-from db import get_connection
+from db import get_connection, DEFAULT_DEFENDANT
 
 # 카테고리 코드 → 화면 라벨 (docs/05 §7)
 CATEGORY_LABELS: dict[str, str] = {
@@ -137,4 +137,32 @@ def calculate_monthly_stats(month: str) -> dict:
         "largestSingleExpense": largest_single_expense,
         "topCategory": top_category,
         "categoryStats": category_stats,
+    }
+
+
+def get_month_context(month: str) -> dict:
+    """그 달의 피고인 이름과 미분류 건수를 구한다.
+
+    피고인은 그 달에 가장 많이 기록된 이름을 쓴다 (업로드할 때 입력한 이름).
+    조회 자체를 피고인으로 필터하지는 않는다 — 이름 한 글자가 달라 빈 화면이 뜨는
+    사고를 막기 위함이다. 이름은 판결문에 표시하는 용도다.
+    """
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """SELECT defendant, COUNT(*) AS c FROM expenses
+                WHERE date LIKE ? || '%' AND defendant != ''
+                GROUP BY defendant ORDER BY c DESC LIMIT 1""",
+            (month + "-",),
+        ).fetchone()
+        needs_review = conn.execute(
+            "SELECT COUNT(*) FROM expenses WHERE date LIKE ? || '%' AND needs_review = 1",
+            (month + "-",),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    return {
+        "defendant": row["defendant"] if row else DEFAULT_DEFENDANT,
+        "needsReviewCount": needs_review,
     }

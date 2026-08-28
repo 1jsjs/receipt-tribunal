@@ -18,7 +18,7 @@ from pathlib import Path
 # 프로젝트 루트를 path에 추가 (data/ 에서 실행해도 동작하도록)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import get_connection, init_db
+from db import get_connection, init_db, DEFAULT_DEFENDANT
 
 SEED_MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
 
@@ -172,9 +172,10 @@ def run_seed():
     for row in SEED_DATA:
         store_name, date, amount, category, tx_type = row
         conn.execute(
-            """INSERT INTO expenses (store_name, date, amount, category, transaction_type, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            (store_name, date, amount, category, tx_type),
+            """INSERT INTO expenses (store_name, date, amount, category, transaction_type,
+                                      defendant, memo, needs_review, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, '', 0, datetime('now'), datetime('now'))""",
+            (store_name, date, amount, category, tx_type, DEFAULT_DEFENDANT),
         )
         inserted += 1
 

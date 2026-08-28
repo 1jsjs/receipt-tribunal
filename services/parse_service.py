@@ -258,6 +258,49 @@ def _guess_transaction_type(store_name: str, row_text: str) -> str:
     return TRANSACTION_TYPE_EXPENSE
 
 
+# 한국 성씨 (예금주 이름 판별용 — 흔한 것 위주)
+_SURNAMES = (
+    "김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신",
+    "권", "황", "안", "송", "전", "홍", "고", "문", "손", "양", "배", "백", "허", "유",
+    "남", "심", "노", "하", "곽", "성", "차", "주", "우", "구", "민", "진", "지", "엄",
+    "채", "원", "천", "방", "공", "현", "함", "변", "염", "여", "추", "도", "소", "석",
+)
+
+# 마스킹된 예금주 표기: 김OO, 김○○, 김*수, 홍길*
+_MASKED_NAME_RE = re.compile(r"^[가-힣][O○o\*×\-_]{1,2}[가-힣]?$")
+
+
+def _looks_like_person(name: str) -> bool:
+    """상호명이 아니라 예금주 이름으로 보이는지 판단한다.
+
+    통장 내역에는 가맹점 대신 "김OO", "홍길동" 같은 예금주명만 찍히는 경우가 많다.
+    이런 건 카테고리를 기계가 정할 수 없으므로 사용자가 직접 채워야 한다.
+
+    주의: 단독으로 쓰면 "이마트"(성씨 이 + 3글자), "김밥천국"이 사람으로 오인된다.
+    그래서 호출부에서 카테고리가 OTHER로 떨어진 건에 대해서만 쓴다.
+    """
+    text = name.strip()
+    if not text:
+        return False
+    if _MASKED_NAME_RE.match(text):
+        return True
+    # 성씨로 시작하는 순수 한글 3~4자 (2자는 상호와 구분이 안 돼 제외)
+    if re.fullmatch(r"[가-힣]{3,4}", text) and text[0] in _SURNAMES:
+        return True
+    return False
+
+
+def _needs_review(store_name: str, category: str, transaction_type: str) -> bool:
+    """미분류로 표시할지 결정한다.
+
+    - 이미 카테고리가 잡힌 건(아는 가맹점)은 대상 아님
+    - 이체는 분석에서 제외되므로 대상 아님
+    """
+    if category != CATEGORY_OTHER or transaction_type != TRANSACTION_TYPE_EXPENSE:
+        return False
+    return _looks_like_person(store_name)
+
+
 def _pick_by_header(row: dict, candidates: tuple[str, ...]) -> str | None:
     """헤더 이름에 키워드가 포함된 컬럼의 값을 돌려준다."""
     for key, value in row.items():
@@ -302,12 +345,15 @@ def _rule_normalize(raw_rows: list[dict]) -> list[dict]:
             store = max(texts, key=len) if texts else "미상"
         store = store.strip()[:100] or "미상"
 
+        category = _guess_category(store)
+        transaction_type = _guess_transaction_type(store, row_text)
         items.append({
             "storeName": store,
             "date": date,
             "amount": amount,
-            "category": _guess_category(store),
-            "transactionType": _guess_transaction_type(store, row_text),
+            "category": category,
+            "transactionType": transaction_type,
+            "needsReview": _needs_review(store, category, transaction_type),
         })
     return items
 
@@ -328,6 +374,10 @@ _NORMALIZE_INSTRUCTION = """당신은 한국 은행·카드사의 지출내역 �
 - transactionType: "EXPENSE" 또는 "TRANSFER"
     이체·송금·ATM출금·카드대금·월세처럼 실제 소비가 아닌 자금 이동은 TRANSFER,
     나머지 실제 소비는 EXPENSE
+- needsReview: true 또는 false
+    상호명 자리에 가맹점이 아니라 **사람 이름(예금주)**만 있어서 무엇을 샀는지
+    알 수 없는 경우 true. (예: "김OO", "홍길동", "박○○")
+    가맹점 이름이 분명하면 false.
 
 규칙:
 - 거래로 볼 수 없는 행(합계, 소계, 안내문, 빈 행)은 결과에서 제외하세요.
@@ -396,12 +446,17 @@ def _sanitize(items: list) -> list[dict]:
         transaction_type = item.get("transactionType")
         if transaction_type not in TRANSACTION_TYPES:
             transaction_type = _guess_transaction_type(store, store)
+        # 모델이 needsReview를 빠뜨리거나 이상하게 주면 규칙으로 다시 판단한다
+        needs_review = item.get("needsReview")
+        if not isinstance(needs_review, bool):
+            needs_review = _needs_review(store, category, transaction_type)
         cleaned.append({
             "storeName": store,
             "date": date,
             "amount": amount,
             "category": category,
             "transactionType": transaction_type,
+            "needsReview": needs_review,
         })
     return cleaned
 

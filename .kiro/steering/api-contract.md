@@ -30,10 +30,32 @@ inclusion: always
 | GET | /api/expenses/{id} | — | Expense 1건 |
 | PUT | /api/expenses/{id} | POST와 동일 바디 | 수정된 Expense |
 | DELETE | /api/expenses/{id} | — | (data 없음) |
-| GET | /api/analysis?month=YYYY-MM | — | 통계+consumerType+judgment+reactionMessage |
-| POST | /api/import | multipart, 필드명 **file** | {imported,parsed,source,rawRowCount,items,warning} |
+| GET | /api/analysis?month=YYYY-MM&defendant=(선택) | — | 통계+consumerType+judgment+reactionMessage+defendant+needsReviewCount |
+| POST | /api/import | multipart: **file** + (선택) **defendant** | {imported,parsed,defendant,needsReviewCount,source,rawRowCount,items,warning} |
 
-Expense = {id, storeName, date, amount, category, transactionType, createdAt, updatedAt}
+Expense = {id, storeName, date, amount, category, transactionType,
+           defendant, memo, needsReview, createdAt, updatedAt}
+
+## 피고인 이름 (defendant)
+- 사용자가 직접 입력한다. **10자 이내**, 넘기면 400(`INVALID_DEFENDANT`).
+- 안 보내면 서버가 "익명의 자취생"으로 채운다. 필수가 아니다.
+- 보내는 곳: POST/PUT 바디의 `defendant`, POST /api/import의 **폼 필드** `defendant`,
+  GET /api/analysis의 쿼리 `defendant`.
+- **조회를 피고인으로 거르지 않는다.** 이름은 판결문에 표시하는 용도다.
+  (이름 한 글자가 달라 빈 화면이 뜨는 사고를 막기 위해 의도적으로 필터를 안 건다.)
+- GET /api/analysis 응답의 `defendant`가 판결문에 쓸 이름이다. 쿼리로 넘기면 그 값이,
+  안 넘기면 그 달 기록에서 가장 많은 이름이 온다.
+
+## 미분류 내역 (needsReview / memo)
+통장 내역에는 가맹점 대신 **예금주 이름만** 찍히는 경우가 많다("김OO", "홍길동").
+이런 건 기계가 카테고리를 정할 수 없어 `needsReview: true`로 표시된다.
+
+- 업로드 응답의 `needsReviewCount`, 분석 응답의 `needsReviewCount`로 몇 건인지 알 수 있다.
+- 프론트는 업로드 직후 **미분류 정리 화면**을 띄운다:
+  각 행마다 `memo` 입력(**10자 이내**, 넘기면 400 `INVALID_MEMO`) + 카테고리 선택.
+- 정리는 `PUT /api/expenses/{id}`로 보낸다. **PUT이 성공하면 서버가 needsReview를 자동으로
+  false로 내린다.** 프론트가 따로 해제 요청을 보낼 필요 없다.
+- 수동 입력으로 만든 건은 항상 `needsReview: false`다.
 
 ## 카테고리 — 프론트가 라벨 매핑을 직접 가져야 한다
 **GET /api/expenses 응답에는 한글 라벨이 없다.** `category: "DELIVERY_DINING"` 코드만 온다.

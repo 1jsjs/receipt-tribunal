@@ -7,7 +7,7 @@ import re
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
-from services.analysis_service import calculate_monthly_stats
+from services.analysis_service import calculate_monthly_stats, get_month_context
 from services.judgment_service import determine_consumer_type, build_judgment
 from services.verdict_service import generate_reasoning
 from services.reaction_data import get_reaction
@@ -19,11 +19,14 @@ _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 @router.get("")
-def get_analysis(month: str = Query(..., description="조회 월 (YYYY-MM)")):
+def get_analysis(
+    month: str = Query(None, description="조회 월 (YYYY-MM)"),
+    defendant: str = Query(None, description="피고인 이름 (생략하면 그 달 기록에서 자동 결정)"),
+):
     """GET /api/analysis?month=YYYY-MM — 월 분석 통합 응답 (docs/05 §12)"""
 
     # ─── month 형식 검증 ───
-    if not _MONTH_RE.match(month):
+    if not isinstance(month, str) or not _MONTH_RE.match(month):
         return JSONResponse(
             status_code=400,
             content={
@@ -42,11 +45,17 @@ def get_analysis(month: str = Query(..., description="조회 월 (YYYY-MM)")):
         # 2) 소비 유형 판정
         consumer_type = determine_consumer_type(stats)
 
+        # 2-1) 피고인 이름 — 쿼리로 받은 값 우선, 없으면 그 달 기록에서 결정
+        context = get_month_context(month)
+        defendant_name = (defendant or "").strip() or context["defendant"]
+
         # 3) 판결문 조립 (reasoning은 일단 폴백)
         judgment = build_judgment(stats, consumer_type)
 
         # 4) reasoning을 Bedrock(또는 MOCK/폴백)으로 교체
-        judgment["reasoning"] = generate_reasoning(stats, consumer_type, judgment)
+        judgment["reasoning"] = generate_reasoning(
+            stats, consumer_type, judgment, defendant_name
+        )
 
         # 5) MZ 리액션
         reaction_message = get_reaction(consumer_type["code"])
@@ -64,6 +73,9 @@ def get_analysis(month: str = Query(..., description="조회 월 (YYYY-MM)")):
             "consumerType": consumer_type,
             "judgment": judgment,
             "reactionMessage": reaction_message,
+            "defendant": defendant_name,
+            # 상호명 대신 예금주 이름만 있어 사용자가 정리해야 하는 건수
+            "needsReviewCount": context["needsReviewCount"],
         }
 
         return {"success": True, "data": data}

@@ -12,7 +12,7 @@ import os
 MODEL_ID = "global.anthropic.claude-sonnet-5"
 
 
-def _build_prompt(stats: dict, consumer_type: dict, judgment: dict) -> str:
+def _build_prompt(stats: dict, consumer_type: dict, judgment: dict, defendant: str) -> str:
     """Bedrock에 보낼 프롬프트를 조립한다."""
     label = consumer_type["label"]
     crime = judgment["crime"]
@@ -24,6 +24,7 @@ def _build_prompt(stats: dict, consumer_type: dict, judgment: dict) -> str:
     return (
         "당신은 위트 있는 소비 재판소 판사입니다. "
         "아래 피고인의 소비 유형과 증거를 바탕으로, 판결 이유를 2~3문장으로 작성하세요.\n\n"
+        f"피고인 이름: {defendant} (판결 이유에 이 이름을 한 번 이상 언급하세요)\n"
         "규칙:\n"
         "- 구체적 수치를 1개 이상 인용할 것\n"
         "- 존댓말 판사 어조\n"
@@ -39,13 +40,13 @@ def _build_prompt(stats: dict, consumer_type: dict, judgment: dict) -> str:
     )
 
 
-def _mock_reasoning(stats: dict, consumer_type: dict) -> str:
+def _mock_reasoning(stats: dict, consumer_type: dict, defendant: str) -> str:
     """MOCK_AI=1일 때 반환하는 고정 문장."""
     label = consumer_type["label"]
     total = stats.get("totalExpense", 0)
     count = stats.get("paymentCount", 0)
     return (
-        f"본 재판부는 피고인의 소비 내역을 면밀히 검토하였습니다. "
+        f"본 재판부는 피고인 {defendant}의 소비 내역을 면밀히 검토하였습니다. "
         f"총 {total:,}원, {count}건의 결제 기록을 분석한 결과, "
         f"'{label}' 유형에 해당하는 소비 패턴이 명확히 확인됩니다."
     )
@@ -89,7 +90,9 @@ def _call_bedrock(prompt: str) -> str:
     raise ValueError(f"응답에 text 블록이 없습니다 (blocks={types}, stop={result.get('stop_reason')})")
 
 
-def generate_reasoning(stats: dict, consumer_type: dict, judgment: dict) -> str:
+def generate_reasoning(
+    stats: dict, consumer_type: dict, judgment: dict, defendant: str = "피고인"
+) -> str:
     """판결문 이유(reasoning)를 생성한다.
 
     Parameters
@@ -107,10 +110,10 @@ def generate_reasoning(stats: dict, consumer_type: dict, judgment: dict) -> str:
     """
     # MOCK_AI=1이면 고정 문장 반환 (로컬 개발용)
     if os.environ.get("MOCK_AI") == "1":
-        return _mock_reasoning(stats, consumer_type)
+        return _mock_reasoning(stats, consumer_type, defendant)
 
     # 실호출 (1회 재시도)
-    prompt = _build_prompt(stats, consumer_type, judgment)
+    prompt = _build_prompt(stats, consumer_type, judgment, defendant)
     for attempt in range(2):
         try:
             return _call_bedrock(prompt)

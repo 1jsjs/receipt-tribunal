@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
-from db import get_connection
+from db import get_connection, DEFAULT_DEFENDANT, DEFENDANT_MAX, MEMO_MAX
 from constants import CATEGORIES, TRANSACTION_TYPES
 
 router = APIRouter(prefix="/api/expenses", tags=["expenses"])
@@ -40,6 +40,10 @@ def _row_to_expense(row) -> dict:
         "amount": row["amount"],
         "category": row["category"],
         "transactionType": row["transaction_type"],
+        "defendant": row["defendant"],
+        "memo": row["memo"],
+        # 업로드 시 상호명 대신 예금주 이름만 있던 건. 사용자가 메모·카테고리를 채워야 한다.
+        "needsReview": bool(row["needs_review"]),
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -94,12 +98,39 @@ def _validate_expense_body(body: dict) -> tuple[dict | None, JSONResponse | None
     if transaction_type not in TRANSACTION_TYPES:
         return None, _error("INVALID_TRANSACTION_TYPE", "transactionType이 유효하지 않습니다.", 400)
 
+    # defendant(피고인 이름): 선택 항목. 안 보내면 기본 피고인으로 채운다.
+    defendant = body.get("defendant")
+    if defendant is None or (isinstance(defendant, str) and defendant.strip() == ""):
+        defendant = DEFAULT_DEFENDANT
+    elif not isinstance(defendant, str):
+        return None, _error("INVALID_DEFENDANT", "defendant는 문자열이어야 합니다.", 400)
+    else:
+        # 말없이 자르지 않는다. 넘치면 사용자에게 알린다.
+        defendant = defendant.strip()
+        if len(defendant) > DEFENDANT_MAX:
+            return None, _error(
+                "INVALID_DEFENDANT", f"피고인 이름은 최대 {DEFENDANT_MAX}자입니다.", 400
+            )
+
+    # memo(미분류 내역 메모): 선택 항목, 10자 이내
+    memo = body.get("memo")
+    if memo is None:
+        memo = ""
+    elif not isinstance(memo, str):
+        return None, _error("INVALID_MEMO", "memo는 문자열이어야 합니다.", 400)
+    else:
+        memo = memo.strip()
+        if len(memo) > MEMO_MAX:
+            return None, _error("INVALID_MEMO", f"memo는 최대 {MEMO_MAX}자입니다.", 400)
+
     return {
         "store_name": store_name,
         "date": date,
         "amount": amount,
         "category": category,
         "transaction_type": transaction_type,
+        "defendant": defendant,
+        "memo": memo,
     }, None
 
 
@@ -119,14 +150,17 @@ def create_expense(body=Body(None)):
     try:
         cursor = conn.execute(
             """INSERT INTO expenses
-                 (store_name, date, amount, category, transaction_type, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+                 (store_name, date, amount, category, transaction_type,
+                  defendant, memo, needs_review, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))""",
             (
                 validated["store_name"],
                 validated["date"],
                 validated["amount"],
                 validated["category"],
                 validated["transaction_type"],
+                validated["defendant"],
+                validated["memo"],
             ),
         )
         conn.commit()
@@ -237,7 +271,8 @@ def update_expense(expense_id: str, body=Body(None)):
         conn.execute(
             """UPDATE expenses
                SET store_name = ?, date = ?, amount = ?, category = ?,
-                   transaction_type = ?, updated_at = datetime('now')
+                   transaction_type = ?, defendant = ?, memo = ?,
+                   needs_review = 0, updated_at = datetime('now')
                WHERE id = ?""",
             (
                 validated["store_name"],
@@ -245,6 +280,8 @@ def update_expense(expense_id: str, body=Body(None)):
                 validated["amount"],
                 validated["category"],
                 validated["transaction_type"],
+                validated["defendant"],
+                validated["memo"],
                 parsed_id,
             ),
         )
