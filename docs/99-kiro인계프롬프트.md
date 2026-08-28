@@ -9,10 +9,22 @@ docs/ 폴더가 우리 팀이 직접 확정한 설계다:
 - docs/06의 내 담당 task를 순서대로 한 번에 하나씩만 진행하고,
   각 task의 완료 조건을 확인한 뒤 결과를 보고해줘
 
-## feat/crud (팀원) 버전
-나는 feat/crud 담당이다. 스켈레톤(main.py, db.py, routes/expenses.py)은 이미 있다.
-docs/06의 TASK-B001부터. 지금은 B001(서버 실행 + /api/health)만.
+## 현재 단계: 프론트엔드 (백엔드는 전부 완료·배포됨)
 
-## feat/analysis (진수) 버전
-나는 feat/analysis 담당이다. docs/06의 TASK-B009부터.
-지금은 B009(분석 서비스)만.
+백엔드 API는 구현·검증·배포가 끝났다. 프론트는 붙이기만 하면 된다.
+- 계약은 `.kiro/steering/api-contract.md`가 기준이다 (서버 실측으로 작성됨).
+  docs/02와 같은 내용이지만, 응답 지연·라벨 매핑처럼 붙일 때 걸리는 것까지 적혀 있다.
+- **백엔드를 고쳐야 한다고 판단되면 멈추고 먼저 알릴 것.** 임의로 수정하지 말 것.
+- docs/06의 F계열 task를 순서대로 하나씩. 각 task 완료 조건을 확인한 뒤 보고할 것.
+
+### 프론트 담당 버전
+나는 프론트 담당이다. static/ 폴더만 수정한다(index.html·style.css·app.js).
+백엔드 파일(main.py·routes/·services/·db.py)은 건드리지 않는다.
+docs/06의 TASK-F001부터. 지금은 F001만.
+
+## 완료된 것 (참고 — 다시 만들지 말 것)
+- B001~B008 CRUD 5종 + 입력 검증
+- B009~B015 통계·판정·판결문(Bedrock)·MZ·시드 77건
+- 파일 업로드 파싱 (POST /api/import, 엑셀·CSV·PDF)
+- 피고인 이름(10자)·미분류 내역(memo 10자·needsReview)
+- EC2 배포 (http://18.135.105.80:8501)
