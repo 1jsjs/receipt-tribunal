@@ -29,6 +29,13 @@ Claude Sonnet 5는 content 배열의 **첫 블록으로 thinking을 반환**한�
 content[0]["text"]는 KeyError가 나고, 모든 호출이 조용히 폴백으로 떨어져 AI가 실종된다.
 반드시 type == "text"인 블록을 찾아서 쓸 것. (verdict_service.py·parse_service.py 참고)
 
+### 1-2. Bedrock 요청에 temperature·top_p를 넣지 말 것
+global.anthropic.claude-sonnet-5는 두 파라미터를 모두 거부한다
+(ValidationException: `temperature` is deprecated for this model).
+서버에서 직접 확인함 — 파라미터 없이 보내면 정상, temperature만 넣어도 실패, top_p만 넣어도 실패.
+실패하면 예외가 삼켜져 폴백 템플릿이 나가므로, 화면은 멀쩡한데 AI만 실종된 상태가 된다.
+샘플링 조정이 필요하면 프롬프트로 해결할 것.
+
 ### 2. FastAPI가 400 대신 422를 내는 경로를 만들지 말 것
 우리 계약서상 검증 실패는 **항상 400 + {"success": false, "error": {"code","message"}}** 이다.
 그런데 아래는 전부 FastAPI 기본 422({"detail": [...]})를 낸다. 프론트가 error.message를

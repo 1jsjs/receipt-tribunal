@@ -29,7 +29,9 @@ from services.category_rules import classify_by_keyword, refine_categories
 MODEL_ID = "global.anthropic.claude-sonnet-5"
 
 # 한 번에 처리할 최대 행 수 (프롬프트 길이·비용 방어)
-MAX_ROWS = 120
+# Bedrock 호출은 40행씩 청크로 나눠 부르므로 이 상한은 토큰이 아니라 총량 제한용이다.
+# 통장 내역은 이자·캐시백 등 노이즈 행이 많아 원시 행 수가 크게 잡히므로 넉넉히 둔다.
+MAX_ROWS = 400
 
 # 업로드 허용 확장자
 SUPPORTED_EXTENSIONS = (".xlsx", ".xls", ".csv", ".pdf")
@@ -91,35 +93,62 @@ def _guess_header_row(df) -> int | None:
     return best_row if best_hits >= 2 else None
 
 
+# 거래 '구분' 컬럼에 오는 표준 용어 (상호명이 아니다 — 적요에서 제거)
+_TXN_KIND_WORDS = (
+    "체크카드결제", "카드결제", "출금", "입금", "이자입금", "오픈뱅킹", "펌뱅킹출금",
+    "펌뱅킹", "캐시백", "이체", "송금", "자동이체", "결제취소", "승인취소", "환불",
+)
+
+
 def _split_text_line(line: str) -> dict:
-    """PDF 텍스트 한 줄을 날짜·적요·금액으로 쪼갠다.
+    """PDF 텍스트 한 줄을 날짜·적요(상호)·금액으로 쪼갠다.
 
-    은행 거래내역은 "2026.10.02 배달의민족 19,800 1,230,400"처럼
-    한 줄에 날짜·적요·출금액·잔액이 붙어 나온다. 통째로 두면 금액 추출이
-    실패하므로(숫자가 섞여 float 변환이 깨진다) 여기서 미리 나눈다.
+    두 가지 레이아웃을 모두 다룬다:
+      A) "2026.10.02 배달의민족 19,800 1,230,400"  (날짜 → 상호 → 금액 → 잔액)
+      B) "2026-08-27 14:54:26 체크카드결제 -1,860 276,558 토스페이_TOSS"
+         (날짜시각 → 구분 → 거래금액 → 잔액 → 상호)   ← 토스뱅크 등
 
-    금액이 여러 개면 첫 번째를 거래금액으로 본다 (뒤쪽은 대개 잔액).
+    핵심 원칙:
+    - 거래금액은 '날짜 뒤 첫 숫자'로 본다 (부호 포함). 그 뒤 숫자는 대개 잔액이다.
+    - 상호명은 숫자열이 끝난 뒤의 텍스트를 우선 쓴다(레이아웃 B). 그게 없으면
+      날짜와 첫 숫자 사이의 텍스트를 쓰되(레이아웃 A), 거래 '구분' 단어는 걷어낸다.
     """
     date_match = re.search(r"\d{2,4}[-./]\d{1,2}[-./]\d{1,2}", line)
     date = date_match.group(0) if date_match else ""
+    # 날짜 뒤 시각(HH:MM:SS)이 붙어 있으면 함께 소비
     rest = line[date_match.end():] if date_match else line
+    rest = re.sub(r"^\s*\d{1,2}:\d{2}(:\d{2})?", "", rest).strip()
 
-    # 1,234 / 1234 형태의 금액 토큰 (3자리 이상)
-    amounts = re.findall(r"[\d,]{3,}", rest)
-    amounts = [a for a in amounts if re.sub(r"[^\d]", "", a)]
+    def _strip_kind(text: str) -> str:
+        for w in _TXN_KIND_WORDS:
+            text = text.replace(w, " ")
+        return re.sub(r"\s+", " ", text).strip()
 
-    # 적요 = 첫 금액 앞의 텍스트
-    memo = rest
-    if amounts:
-        cut = rest.find(amounts[0])
-        if cut > 0:
-            memo = rest[:cut]
+    # 앞머리의 거래 '구분' 단어를 먼저 걷어낸다 (레이아웃 B: 구분 → 금액 → 잔액 → 상호)
+    head_removed = _strip_kind(rest)
 
-    return {
-        "거래일자": date,
-        "적요": memo.strip(),
-        "금액": amounts[0] if amounts else "",
-    }
+    # '독립된 금액 토큰'만 잡는다: 양옆이 글자가 아닌 순수 숫자열(콤마 허용).
+    # 이렇게 하면 "e마트24"의 24처럼 상호에 붙은 숫자는 금액으로 오인하지 않는다.
+    money_re = re.compile(r"(?<![\d가-힣A-Za-z])(-?\d{1,3}(?:,\d{3})+|-?\d+)(?![\d가-힣A-Za-z])")
+    tokens = [m for m in money_re.finditer(head_removed) if re.sub(r"[^\d]", "", m.group(0))]
+
+    if not tokens:
+        return {"거래일자": date, "적요": _strip_kind(rest), "금액": "", "_raw": rest}
+
+    # 거래금액 = 첫 숫자. 잔액(둘째 숫자)까지 소비하고 그 뒤를 상호명으로 본다.
+    first_amt = tokens[0].group(0)
+    before = head_removed[:tokens[0].start()].strip()
+    # 상호가 숫자 뒤에 오는 레이아웃(B): 잔액 토큰 뒤부터가 상호
+    balance_idx = 1 if len(tokens) >= 2 else 0
+    after = head_removed[tokens[balance_idx].end():].strip()
+
+    # 상호명: 앞 텍스트(레이아웃 A)가 있으면 우선, 없으면 숫자 뒤 텍스트(레이아웃 B)
+    store = before if re.search(r"[가-힣A-Za-z]", before) else after
+    if not store:
+        store = after or before
+
+    # _raw: 구분어를 포함한 원본 줄. 이체/소비 판정에 쓴다(구분어가 상호에서 지워지므로).
+    return {"거래일자": date, "적요": store.strip(), "금액": first_amt, "_raw": rest}
 
 
 def _read_pdf(content: bytes) -> list[dict]:
@@ -133,6 +162,10 @@ def _read_pdf(content: bytes) -> list[dict]:
     rows: list[dict] = []
     with pdfplumber.open(io.BytesIO(content)) as pdf:
         for page in pdf.pages:
+            # 표/텍스트 판정은 반드시 "이 페이지" 기준으로 한다.
+            # 전체 누적 rows로 판정하면, 앞 페이지에서 표가 한 번 잡힌 뒤로는
+            # 이후 페이지가 표로 안 잡혀도 텍스트 폴백을 건너뛰어 통째로 누락된다.
+            page_rows: list[dict] = []
             for table in (page.extract_tables() or []):
                 if not table:
                     continue
@@ -141,20 +174,73 @@ def _read_pdf(content: bytes) -> list[dict]:
                     cells = [str(c or "").strip() for c in raw]
                     if not any(cells):
                         continue
-                    rows.append({header[i] if i < len(header) and header[i] else f"col{i}": cells[i]
-                                 for i in range(len(cells))})
-            if not rows:
+                    page_rows.append({header[i] if i < len(header) and header[i] else f"col{i}": cells[i]
+                                      for i in range(len(cells))})
+            if not page_rows:
                 text = page.extract_text() or ""
-                for line in text.splitlines():
-                    line = line.strip()
-                    # 날짜와 숫자가 같이 있는 줄만 거래로 취급
-                    if line and re.search(r"\d{2,4}[-./]\d{1,2}[-./]\d{1,2}", line) and re.search(r"\d{3,}", line):
-                        parsed_line = _split_text_line(line)
-                        # 상호명 자리에 글자가 없으면 거래가 아니다
-                        # (예: "조회기간 2026.10.01 ~ 2026.10.31" → 적요가 "~"만 남음)
-                        if re.search(r"[가-힣A-Za-z]", parsed_line["적요"]):
-                            rows.append(parsed_line)
+                page_rows.extend(_parse_text_lines(text))
+            rows.extend(page_rows)
     return rows
+
+
+# 거래 줄 판정용
+_LINE_DATE_RE = re.compile(r"\d{2,4}[-./]\d{1,2}[-./]\d{1,2}")
+_LINE_NUM_RE = re.compile(r"\d{3,}")
+
+# 거래가 아닌 안내/헤더/꼬리 줄 (상호 조각으로 오인하면 안 됨)
+_NON_TX_HINTS = (
+    "거래내역", "거래일자", "예금주", "계좌번호", "예금종류", "조회기간",
+    "단위", "발급", "고객센터", "문서", "페이지", "은행", "bank",
+)
+# "11 // 77", "1 / 7" 같은 페이지 번호
+_PAGE_NO_RE = re.compile(r"^\d+\s*/+\s*\d+$")
+
+
+def _looks_like_store_fragment(line: str) -> bool:
+    """날짜 없는 줄이 '쪼개진 상호 조각'으로 보이는지 판단한다.
+
+    안내문·헤더·페이지번호는 조각이 아니다. 한글/영문이 있고 위 힌트에 안 걸리면 조각으로 본다.
+    """
+    if not line or not re.search(r"[가-힣A-Za-z]", line):
+        return False
+    if _PAGE_NO_RE.match(line):
+        return False
+    low = line.lower()
+    return not any(h in low for h in _NON_TX_HINTS)
+
+
+def _parse_text_lines(text: str) -> list[dict]:
+    """PDF 텍스트를 거래 행으로 만든다. 긴 상호가 거래 줄 앞뒤로 쪼개진 경우 병합한다.
+
+    토스뱅크 등은 긴 상호를 이렇게 나눈다:
+        '커몬뮤직플렉스코인노래연'                        ← 머리 (날짜 없음)
+        '2026-08-26 20:35:52 체크카드결제 -9,900 585,002'  ← 금액 줄 (상호 비어있음)
+        '습장'                                           ← 꼬리 (날짜 없음)
+    금액 줄에 상호가 비면 직전(머리)·직후(꼬리) 조각을 이어붙여 복원한다.
+    """
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    is_tx = [bool(_LINE_DATE_RE.search(l) and _LINE_NUM_RE.search(l)) for l in lines]
+
+    result: list[dict] = []
+    for i, line in enumerate(lines):
+        if not is_tx[i]:
+            continue
+        parsed = _split_text_line(line)
+        store = parsed["적요"]
+
+        # 상호가 비었으면 앞뒤의 날짜없는 조각을 이어붙인다
+        if not re.search(r"[가-힣A-Za-z]", store):
+            head = lines[i - 1] if i > 0 and not is_tx[i - 1] and _looks_like_store_fragment(lines[i - 1]) else ""
+            tail = lines[i + 1] if i + 1 < len(lines) and not is_tx[i + 1] and _looks_like_store_fragment(lines[i + 1]) else ""
+            merged = (head + tail).strip()
+            if merged:
+                store = merged
+                parsed["적요"] = merged
+
+        # 그래도 상호에 글자가 없으면 거래가 아니다 (안내문 등)
+        if re.search(r"[가-힣A-Za-z]", store):
+            result.append(parsed)
+    return result
 
 
 def extract_rows(filename: str, content: bytes) -> list[dict]:

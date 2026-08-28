@@ -296,8 +296,10 @@ def _call_bedrock(stats: dict, consumer_type: dict, judgment: dict,
     body = json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 2048,
-        "temperature": 0.7,   # 유머는 살리되 형식 이탈은 억제
-        "top_p": 0.9,
+        # temperature·top_p를 넣으면 안 된다.
+        # global.anthropic.claude-sonnet-5는 두 파라미터를 거부한다
+        # (ValidationException: `temperature` is deprecated for this model).
+        # 실패하면 조용히 폴백 템플릿으로 떨어져 AI가 실종된 것처럼 보인다.
         "system": _SYSTEM_PROMPT,
         "messages": messages,
     })
