@@ -13,6 +13,8 @@
 | 6 | GET | /api/analysis?month=YYYY-MM&defendant=(선택) | month 쿼리 | 통계+consumerType+judgment+reactionMessage+defendant+needsReviewCount (05 §12) | 400 월 형식 |
 | 7 | POST | /api/import | multipart: **file**(필수) + **defendant**(선택) | {imported, parsed, defendant, needsReviewCount, source, rawRowCount, items, warning} | 400 형식·크기·파일없음 |
 
+| 8 | POST | /api/expenses/skip-review?month=YYYY-MM | month 쿼리 | {skipped, month} | 400 월 형식 |
+
 ## 파일 업로드 (7번)
 - 엑셀(.xlsx/.xls)·CSV·**텍스트** PDF, 10MB 이하. 스캔 이미지 PDF는 미지원(items가 빈 배열).
 - `?dryRun=true`를 붙이면 저장하지 않고 파싱 결과만 준다 → 확인 화면에 쓰고,

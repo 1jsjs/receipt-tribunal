@@ -9,6 +9,7 @@ from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
 from db import get_connection, DEFAULT_DEFENDANT, DEFENDANT_MAX, MEMO_MAX, PLEA_MAX
+from constants import CATEGORY_OTHER
 from constants import CATEGORIES, TRANSACTION_TYPES
 
 router = APIRouter(prefix="/api/expenses", tags=["expenses"])
@@ -232,6 +233,35 @@ def _parse_id(raw_id: str) -> tuple[int | None, JSONResponse | None]:
         return int(raw_id), None
     except (ValueError, TypeError):
         return None, _error("INVALID_ID", "id는 정수여야 합니다.", 400)
+
+
+@router.post("/skip-review")
+def skip_review(month=Query(None, description="정리를 건너뛸 월 (YYYY-MM)")):
+    """POST /api/expenses/skip-review?month=YYYY-MM — 미분류 정리를 일괄 건너뛴다.
+
+    미분류가 20건씩 나오면 하나씩 메모를 다는 게 현실적이지 않다.
+    건너뛰면 해당 건을 전부 '기타'로 확정하고 미분류 표시를 내린다.
+    기타 비중이 커지면 분석에서 그만큼의 논평이 따라붙는다(의도된 동작).
+
+    이 라우트는 /{expense_id} 보다 반드시 먼저 등록되어야 한다.
+    """
+    if not isinstance(month, str) or not _MONTH_RE.match(month):
+        return _error("INVALID_MONTH", "month는 YYYY-MM 형식이어야 합니다.", 400)
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """UPDATE expenses
+                  SET category = ?, needs_review = 0, updated_at = datetime('now')
+                WHERE needs_review = 1 AND substr(date, 1, 7) = ?""",
+            (CATEGORY_OTHER, month),
+        )
+        conn.commit()
+        skipped = cursor.rowcount
+    finally:
+        conn.close()
+
+    return {"success": True, "data": {"skipped": skipped, "month": month}}
 
 
 # ─── 경로 변수 라우트 (@router.get("") 뒤에 등록 — 고정 경로가 먼저 매칭되도록) ───

@@ -64,6 +64,22 @@ Expense = {id, storeName, date, amount, category, transactionType,
   판결문 `judgment.reasoning`과 `judgment.evidence`("정상참작: …")에 반영된다.
 - POST/PUT `/api/expenses` 바디의 선택 필드. 두 입력 칸은 화면에서도 분리한다.
 
+## 미분류 정리 건너뛰기 + 기타 논평
+미분류가 20건씩 나오면 하나씩 메모를 다는 건 현실적이지 않다. 건너뛰기를 제공한다.
+
+- `POST /api/expenses/skip-review?month=YYYY-MM` → `{"skipped": N, "month": "..."}`
+  해당 월의 미분류를 전부 '기타'로 확정하고 needsReview를 내린다. month 없거나 형식 위반 시 400.
+- 미분류 정리 화면에 **[건너뛰기]** 버튼을 두고 이 API를 부른다. 누르면 목록·분석을 새로 부른다.
+- `GET /api/analysis` 응답의 **`remark`**: '기타' 비중이 30% 넘을 때만 채워지고, 아니면 **null**(영역 숨김).
+```
+"remark": {"ratio": 94.19, "amount": 360000, "count": 3,
+           "level": "notice" | "severe",
+           "message": "피고인은 이번 달 지출의 94%인 360,000원을 '기타'로 남겼습니다. …"}
+```
+- `message`를 그대로 띄운다. `level`이 severe면 강조 색을 써도 좋다.
+- 판결문 **아래**, benchmark와 나란히 두면 자연스럽다.
+- 설계 의도: 미분류를 **정리하면** 기타 비중이 내려가 논평이 사라지고, **건너뛰면** 논평이 붙는다.
+
 ## 공공데이터 비교 (benchmark)
 MZ 리액션 **아래**에 붙는 근거 한 줄이다. `GET /api/analysis` 응답의 `benchmark`.
 
