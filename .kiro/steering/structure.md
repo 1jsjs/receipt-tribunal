@@ -33,11 +33,6 @@ docs/                        설계 원본 00~06, 99 — 코드보다 이게 기
 - 상수는 constants.py. 카테고리 코드를 여기저기 문자열로 박지 말 것.
 - **static 마운트는 main.py 맨 마지막**이어야 한다. 위로 올리면 /api 전체가 404가 된다.
 
-## 미사용 파일 (v1 잔재 — 건드리지도, 참고하지도 말 것)
-app.py / receipt_app.py / bedrock_faiss_indexer.py / bedrock_faiss_rag_chatbot.py /
-bedrock_simple_test.py / TEAM_GUIDE.html
-v1(Streamlit·스타터)에서 남은 것들이다. 현재 서비스와 무관하며 수정 대상이 아니다.
-
 ## 브랜치
 - `allnew` = 통합·배포 기준. 여기서 갈라져 나가고 여기로 합친다.
 - 작업 브랜치는 feat/* 로 만들고, 태스크 하나 끝날 때마다 커밋한다.
