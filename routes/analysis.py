@@ -15,6 +15,7 @@ from services.analysis_service import (
 from services.judgment_service import determine_consumer_type, build_judgment
 from services.verdict_service import generate_verdict
 from services.reaction_data import get_reaction
+from services.benchmark_service import build_benchmark
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
@@ -86,6 +87,9 @@ def get_analysis(
             "judgment": judgment,
             "reactionMessage": reaction_message,
             "defendant": defendant_name,
+            # 공공데이터(1인가구 평균) 대비 비교 — MZ 리액션 아래에 근거로 붙는다.
+            # 그 달 지출이 0건이면 None이며, 프론트는 이 경우 영역을 숨긴다.
+            "benchmark": build_benchmark(stats),
             # 상호명 대신 예금주 이름만 있어 사용자가 정리해야 하는 건수
             "needsReviewCount": context["needsReviewCount"],
         }

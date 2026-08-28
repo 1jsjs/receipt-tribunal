@@ -64,6 +64,28 @@ Expense = {id, storeName, date, amount, category, transactionType,
   판결문 `judgment.reasoning`과 `judgment.evidence`("정상참작: …")에 반영된다.
 - POST/PUT `/api/expenses` 바디의 선택 필드. 두 입력 칸은 화면에서도 분리한다.
 
+## 공공데이터 비교 (benchmark)
+MZ 리액션 **아래**에 붙는 근거 한 줄이다. `GET /api/analysis` 응답의 `benchmark`.
+
+```
+"benchmark": {
+  "groupLabel": "전국 1인가구 평균",
+  "source": "국가데이터처 「2025 통계로 보는 1인가구」 · 2024년 기준",
+  "isEstimated": true,          // true면 화면에 "추정" 표기를 함께 띄울 것
+  "categoryLabel": "배달·외식",
+  "userAmount": 178000,
+  "averageAmount": 246000,
+  "diffPercent": -27.6,
+  "direction": "over" | "under" | "similar" | "unknown",
+  "headline": "전국 1인가구 평균보다 배달·외식에 28% 적게 썼습니다.",
+  "totalUserAmount": 246000, "totalAverageAmount": 1689000, "totalDiffPercent": -85.4
+}
+```
+- **`headline`을 그대로 띄우면 된다.** 프론트에서 퍼센트를 다시 계산하지 말 것.
+- **`benchmark`는 null일 수 있다**(그 달 지출 0건). null이면 이 영역을 통째로 숨긴다.
+- `source`는 반드시 화면에 함께 표시한다. 공공데이터 인용이라 출처 표기가 필요하다.
+- `direction`으로 색을 나눠도 좋다(over=경고색, under=긍정색).
+
 ## 카테고리 — 프론트가 라벨 매핑을 직접 가져야 한다
 **GET /api/expenses 응답에는 한글 라벨이 없다.** `category: "DELIVERY_DINING"` 코드만 온다.
 목록 화면에 코드를 그대로 찍으면 안 되므로 프론트가 아래 표를 갖고 변환한다.
