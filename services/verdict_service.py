@@ -64,7 +64,7 @@ def _call_bedrock(prompt: str) -> str:
 
     body = json.dumps({
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 512,
+        "max_tokens": 2048,
         "messages": [
             {"role": "user", "content": prompt}
         ],
@@ -78,9 +78,15 @@ def _call_bedrock(prompt: str) -> str:
     )
 
     result = json.loads(response["body"].read())
-    # Claude 응답에서 텍스트 추출
-    text = result["content"][0]["text"].strip()
-    return text
+
+    # Claude Sonnet 5는 content 배열의 첫 블록으로 thinking을 반환할 수 있다.
+    # content[0]["text"]로 꺼내면 KeyError가 나므로 type이 "text"인 블록을 찾는다.
+    for block in result.get("content", []):
+        if block.get("type") == "text" and block.get("text"):
+            return block["text"].strip()
+
+    types = [b.get("type") for b in result.get("content", [])]
+    raise ValueError(f"응답에 text 블록이 없습니다 (blocks={types}, stop={result.get('stop_reason')})")
 
 
 def generate_reasoning(stats: dict, consumer_type: dict, judgment: dict) -> str:
