@@ -33,7 +33,7 @@ data/
   database.sqlite          로컬 DB (git 무시)
   store_category.sqlite    공공데이터 색인 129MB (git 무시 — 서버엔 scp로 올림)
 
-static/                    프론트 (index.html·style.css·app.js) — 여기가 남은 작업
+static/                    프론트 — 지금은 index.html 스텁뿐. style.css·app.js는 새로 만든다
 samples/                   데모용 합성 파일 (카드내역 xlsx · 계좌내역 pdf)
 tests/                     pytest. 실행: python3 -m pytest tests/ -q
 docs/                      설계 원본 00~06·99 — 코드보다 이게 기준이다
@@ -48,6 +48,7 @@ docs/                      설계 원본 00~06·99 — 코드보다 이게 기�
 
 ## 브랜치
 - `allnew` = 통합·배포 기준(기본 브랜치). 여기서 갈라져 나가고 여기로 합친다.
+- 원격에 `master`(백지 기준점)·`spec-v1-backup`(v1 보존)도 있으나 작업 대상이 아니다.
 - 작업 브랜치는 feat/*, 태스크 하나 끝날 때마다 커밋.
 - PR 검토 시: ①브랜치 기반이 최신 allnew인지 ②Bedrock 호출부가 §1·§2 반영했는지
   ③GitHub가 MERGEABLE이라 해도 **의미 충돌**은 못 잡는다(import 삭제 등) — 로컬 머지 후

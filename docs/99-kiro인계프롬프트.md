@@ -26,5 +26,8 @@ docs/06의 TASK-F001부터. 지금은 F001만.
 - B001~B008 CRUD 5종 + 입력 검증
 - B009~B015 통계·판정·판결문(Bedrock)·MZ·시드 77건
 - 파일 업로드 파싱 (POST /api/import, 엑셀·CSV·PDF)
-- 피고인 이름(10자)·미분류 내역(memo 10자·needsReview)
-- EC2 배포 (http://18.135.105.80:8501)
+- 피고인 이름(10자)·미분류 내역(memo 10자·needsReview 자동 해제)
+- 변론 plea(200자, 판결 정상참작)·건너뛰기(POST /skip-review)
+- 공공데이터 2종: 1인가구 평균 비교(benchmark)·상권정보 색인 카테고리 보정(store_lookup)
+- 행방불명 논평(remark, 기타 30%↑)
+- EC2 배포 (http://18.135.105.80:8501, 상권정보 색인 129MB 반영됨)

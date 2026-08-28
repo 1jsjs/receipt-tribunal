@@ -30,17 +30,27 @@ inclusion: always
 | GET | /api/expenses/{id} | — | Expense 1건 |
 | PUT | /api/expenses/{id} | POST와 동일 바디 | 수정된 Expense |
 | DELETE | /api/expenses/{id} | — | (data 없음) |
-| GET | /api/analysis?month=YYYY-MM&defendant=(선택) | — | 통계+consumerType+judgment+reactionMessage+defendant+needsReviewCount |
+| GET | /api/analysis?month=YYYY-MM&defendant=(선택) | — | 아래 '분석 응답 전체 키' 참조 |
 | POST | /api/import | multipart: **file** + (선택) **defendant** | {imported,parsed,defendant,needsReviewCount,source,rawRowCount,items,warning} |
 
 Expense = {id, storeName, date, amount, category, transactionType,
            defendant, memo, plea, needsReview, createdAt, updatedAt}
 
+## 분석 응답 전체 키 (GET /api/analysis 의 data — 15개, 이대로 렌더)
+```
+month, totalExpense, paymentCount, averagePaymentAmount, smallPaymentCount,
+largestSingleExpense{amount,storeName,date,category},
+topCategory{category,label,amount,percentage,count}, categoryStats[동일 구조 배열],
+consumerType{code,label}, judgment{crime,evidence[],verdict,reasoning,sentence},
+reactionMessage, defendant, needsReviewCount, benchmark(null 가능), remark(null 가능)
+```
+통계 카드는 이 필드명을 그대로 쓴다. 프론트에서 재계산 금지.
+
 ## 피고인 이름 (defendant)
 - 사용자가 직접 입력한다. **10자 이내**, 넘기면 400(`INVALID_DEFENDANT`).
 - 안 보내면 서버가 "익명의 자취생"으로 채운다. 필수가 아니다.
 - 보내는 곳: POST/PUT 바디의 `defendant`, POST /api/import의 **폼 필드** `defendant`,
-  GET /api/analysis의 쿼리 `defendant`.
+  GET /api/analysis의 쿼리 `defendant`. **10자 초과 400은 네 곳 모두 동일 적용.**
 - **조회를 피고인으로 거르지 않는다.** 이름은 판결문에 표시하는 용도다.
   (이름 한 글자가 달라 빈 화면이 뜨는 사고를 막기 위해 의도적으로 필터를 안 건다.)
 - GET /api/analysis 응답의 `defendant`가 판결문에 쓸 이름이다. 쿼리로 넘기면 그 값이,
@@ -70,7 +80,7 @@ Expense = {id, storeName, date, amount, category, transactionType,
 - `POST /api/expenses/skip-review?month=YYYY-MM` → `{"skipped": N, "month": "..."}`
   해당 월의 미분류를 전부 '기타'로 확정하고 needsReview를 내린다. month 없거나 형식 위반 시 400.
 - 미분류 정리 화면에 **[건너뛰기]** 버튼을 두고 이 API를 부른다. 누르면 목록·분석을 새로 부른다.
-- `GET /api/analysis` 응답의 **`remark`**: '기타' 비중이 30% 넘을 때만 채워지고, 아니면 **null**(영역 숨김).
+- `GET /api/analysis` 응답의 **`remark`**: '기타' 비중이 30% 이상일 때만 채워지고, 아니면 **null**(영역 숨김).
 ```
 "remark": {"ratio": 94.19, "amount": 360000, "count": 3,
            "level": "notice" | "severe",
@@ -88,6 +98,7 @@ MZ 리액션 **아래**에 붙는 근거 한 줄이다. `GET /api/analysis` 응�
   "groupLabel": "전국 1인가구 평균",
   "source": "국가데이터처 「2025 통계로 보는 1인가구」 · 2024년 기준",
   "isEstimated": true,          // true면 화면에 "추정" 표기를 함께 띄울 것
+  "category": "DELIVERY_DINING",
   "categoryLabel": "배달·외식",
   "userAmount": 178000,
   "averageAmount": 246000,

@@ -48,7 +48,8 @@ Sonnet 5가 둘 다 거부한다(`ValidationException: deprecated for this model
 - `expense_id: int` 처럼 경로 변수에 타입 지정
 해결: 어노테이션 없이 `Body(None)`/`Query(None)`/`File(None)`로 받아 직접 검증하고 400 반환.
 기존 라우터가 이미 이 방식이니 그대로 따를 것.
-(남은 구멍: 깨진 JSON 문법은 Starlette가 파싱 단계에서 422를 낸다 — 미처리)
+(깨진 JSON·multipart file을 텍스트로 보낸 경우는 main.py의 전역 RequestValidationError
+핸들러가 400 + 공통 형식으로 변환한다 — 이 안전망을 지우지 말 것)
 
 ### 4. 라우트 등록 순서
 경로 변수 라우트(`/{expense_id}`)는 고정 경로보다 **뒤에** 등록해야 한다.

@@ -7,6 +7,7 @@ import re
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
+from db import DEFENDANT_MAX
 from services.analysis_service import (
     calculate_monthly_stats,
     get_month_context,
@@ -52,6 +53,14 @@ def get_analysis(
         consumer_type = determine_consumer_type(stats)
 
         # 2-1) 피고인 이름 — 쿼리로 받은 값 우선, 없으면 그 달 기록에서 결정
+        # 길이 검증은 POST/PUT/import와 동일하게 적용한다 (11자가 판결문에 박히는 것 방지)
+        if defendant and len(defendant.strip()) > DEFENDANT_MAX:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": {
+                    "code": "INVALID_DEFENDANT",
+                    "message": f"피고인 이름은 최대 {DEFENDANT_MAX}자입니다."}},
+            )
         context = get_month_context(month)
         defendant_name = (defendant or "").strip() or context["defendant"]
 

@@ -539,7 +539,7 @@ def _normalize_inner(rows: list[dict]) -> tuple[list[dict], str]:
             return result, "bedrock"
         print("[parse] Bedrock 결과가 비어 규칙 폴백으로 전환")
     except Exception as e:
-        print(f"[parse] Bedrock 정규화 실패 → 규칙 폴백: {e}")
+        print(f"[parse] Bedrock 호출 실패 → 규칙 폴백: {e}")  # "Bedrock 호출 실패"로 grep됨 (verdict와 통일)
 
     return _rule_normalize(rows), "rules(fallback)"
 

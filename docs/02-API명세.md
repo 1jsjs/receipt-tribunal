@@ -10,7 +10,7 @@
 | 3 | GET | /api/expenses/{id} | — | Expense 1건 | 404 없음 |
 | 4 | PUT | /api/expenses/{id} | 1번과 동일 바디 | 수정된 Expense | 400/404 |
 | 5 | DELETE | /api/expenses/{id} | — | {"success": true} | 404 없음 |
-| 6 | GET | /api/analysis?month=YYYY-MM&defendant=(선택) | month 쿼리 | 통계+consumerType+judgment+reactionMessage+defendant+needsReviewCount (05 §12) | 400 월 형식 |
+| 6 | GET | /api/analysis?month=YYYY-MM&defendant=(선택) | month 쿼리 | data 키 15개: 통계 6종+largestSingleExpense+topCategory+categoryStats+consumerType+judgment+reactionMessage+defendant+needsReviewCount+**benchmark**(null가능)+**remark**(null가능) — 상세는 05 §12 | 400 월 형식 |
 | 7 | POST | /api/import | multipart: **file**(필수) + **defendant**(선택) | {imported, parsed, defendant, needsReviewCount, source, rawRowCount, items, warning} | 400 형식·크기·파일없음 |
 
 | 8 | POST | /api/expenses/skip-review?month=YYYY-MM | month 쿼리 | {skipped, month} | 400 월 형식 |
