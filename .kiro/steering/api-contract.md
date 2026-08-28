@@ -26,7 +26,8 @@ inclusion: always
 |---|---|---|---|
 | GET | /api/health | — | {message} |
 | POST | /api/expenses | {storeName,date,amount,category,transactionType} | 생성된 Expense (201) |
-| GET | /api/expenses?month=YYYY-MM | — | Expense 배열 (날짜 내림차순, TRANSFER 포함) |
+| GET | /api/expenses?month=YYYY-MM | — | Expense 배열 (날짜 내림차순, 3종 전부 포함) |
+| GET | /api/expenses/daily?month=YYYY-MM | — | 달력용: {month, days:[{date,expense,income,transfer,count}]} |
 | GET | /api/expenses/{id} | — | Expense 1건 |
 | PUT | /api/expenses/{id} | POST와 동일 바디 | 수정된 Expense |
 | DELETE | /api/expenses/{id} | — | (data 없음) |
@@ -45,6 +46,15 @@ consumerType{code,label}, judgment{crime,evidence[],verdict,reasoning,sentence},
 reactionMessage, defendant, needsReviewCount, benchmark(null 가능), remark(null 가능)
 ```
 통계 카드는 이 필드명을 그대로 쓴다. 프론트에서 재계산 금지.
+
+## 달력 (홈 화면)
+- 날짜 칸의 합계는 **`GET /api/expenses/daily`가 준 값을 그대로** 쓴다. 목록에서 재합산 금지.
+- 거래 없는 날짜는 days 배열에 아예 없다 → 금액 표시 없음.
+- 날짜 클릭 상세는 `GET /api/expenses?month=` 결과를 date로 필터해서 그린다(추가 API 불필요).
+- "이번 달 총지출"은 `GET /api/analysis`의 totalExpense (EXPENSE만, 수입·이체 제외).
+- memo는 최대 **30자** (400: INVALID_MEMO). 달력 상세에 표시되는 일반 메모다.
+- ⚠️ HTML을 file:// 로 직접 열면 fetch가 전부 실패해 0원으로 보인다.
+  반드시 `MOCK_AI=1 python3 -m uvicorn main:app --port 8899` 로 서빙한 주소에서 확인할 것.
 
 ## 피고인 이름 (defendant)
 - 사용자가 직접 입력한다. **10자 이내**, 넘기면 400(`INVALID_DEFENDANT`).
@@ -125,7 +135,10 @@ GROCERIES          식재료·생필품
 SHOPPING_HOBBY     쇼핑·취미
 OTHER              기타
 ```
-거래유형: `EXPENSE` = 소비 / `TRANSFER` = 이체
+거래유형 3종:
+- `EXPENSE` = 소비 (분석·판결 대상. 달력에 **-금액 빨간색**)
+- `TRANSFER` = 이체·송금 (저장되지만 분석 제외)
+- `INCOME` = 수입 — 입금·용돈·급여·이자 (분석 제외. 달력에 **+금액 초록색**)
 입력 폼의 셀렉트는 **화면에 한글 라벨을 보여주고 값은 영문 코드를 전송**한다.
 
 ## 값 규칙

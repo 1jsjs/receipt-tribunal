@@ -7,6 +7,7 @@
 | 0 | GET | /api/health | — | {message: "server is running"} | — |
 | 1 | POST | /api/expenses | {storeName, date, amount, category, transactionType} | 생성된 Expense (id·createdAt 포함) | 400 검증 실패 |
 | 2 | GET | /api/expenses?month=YYYY-MM | month 쿼리 | Expense 배열 (날짜 내림차순) | 400 월 형식 |
+| 2-1 | GET | /api/expenses/daily?month=YYYY-MM | month 쿼리 | 달력용 날짜별 합계 {days:[{date,expense,income,transfer,count}]} | 400 월 형식 |
 | 3 | GET | /api/expenses/{id} | — | Expense 1건 | 404 없음 |
 | 4 | PUT | /api/expenses/{id} | 1번과 동일 바디 | 수정된 Expense | 400/404 |
 | 5 | DELETE | /api/expenses/{id} | — | {"success": true} | 404 없음 |
@@ -34,6 +35,6 @@
 ## 필드명 계약 (RULE 002~005 — 임의 변경 금지)
 - camelCase: `storeName` `amount` `transactionType` `createdAt` `consumerType` `reactionMessage` `defendant` `memo` `plea` `needsReview` `needsReviewCount`
 - 카테고리 코드 6종: `DELIVERY_DINING` `CONVENIENCE_STORE` `CAFE_SNACK` `GROCERIES` `SHOPPING_HOBBY` `OTHER`
-- 거래 유형: `EXPENSE` `TRANSFER`
+- 거래 유형: `EXPENSE` `TRANSFER` `INCOME`(수입 — 분석 제외, 달력 +초록)
 - 금액은 숫자(18000) — "18,000원" 문자열 금지
 - 날짜 `YYYY-MM-DD`, 월 `YYYY-MM`

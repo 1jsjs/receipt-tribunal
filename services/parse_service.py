@@ -21,6 +21,7 @@ from constants import (
     # OTHER 비교는 여기 남아 있으므로 import를 지우면 안 된다)
     CATEGORY_OTHER,
     TRANSACTION_TYPE_EXPENSE,
+    TRANSACTION_TYPE_INCOME,
     TRANSACTION_TYPE_TRANSFER,
     TRANSACTION_TYPES,
 )
@@ -255,9 +256,14 @@ def extract_rows(filename: str, content: bytes) -> list[dict]:
 
 # ─────────────────── 2단계: 규칙 기반 정규화 (폴백) ───────────────────
 
-# 이체·송금으로 볼 키워드
+# 수입으로 볼 키워드 (돈이 들어온 것 — 이체보다 먼저 검사한다)
+_INCOME_KEYWORDS = (
+    "입금", "급여", "월급", "용돈", "이자", "환급", "환불", "지원금", "장학금", "알바비", "캐시백",
+)
+
+# 이체·송금(나간 자금 이동)으로 볼 키워드
 _TRANSFER_KEYWORDS = (
-    "이체", "송금", "atm", "출금", "입금", "계좌", "자동납부", "카드대금", "대출", "월세", "보증금",
+    "이체", "송금", "atm", "출금", "계좌", "자동납부", "카드대금", "대출", "월세", "보증금",
 )
 
 # 헤더 이름에서 역할을 추정할 때 쓰는 키워드
@@ -308,7 +314,13 @@ def _guess_category(store_name: str) -> str:
 
 
 def _guess_transaction_type(store_name: str, row_text: str) -> str:
+    """수입 > 이체 > 소비 순으로 판정한다.
+
+    "타행이체 입금"처럼 두 키워드가 겹치면 방향(들어옴)이 우선이다.
+    """
     haystack = f"{store_name} {row_text}".lower()
+    if any(k in haystack for k in _INCOME_KEYWORDS):
+        return TRANSACTION_TYPE_INCOME
     if any(k in haystack for k in _TRANSFER_KEYWORDS):
         return TRANSACTION_TYPE_TRANSFER
     return TRANSACTION_TYPE_EXPENSE
@@ -427,9 +439,10 @@ _NORMALIZE_INSTRUCTION = """당신은 한국 은행·카드사의 지출내역 �
 - category: 다음 6개 중 하나
     DELIVERY_DINING(배달·외식), CONVENIENCE_STORE(편의점), CAFE_SNACK(카페·간식),
     GROCERIES(식재료·생필품), SHOPPING_HOBBY(쇼핑·취미), OTHER(기타)
-- transactionType: "EXPENSE" 또는 "TRANSFER"
-    이체·송금·ATM출금·카드대금·월세처럼 실제 소비가 아닌 자금 이동은 TRANSFER,
-    나머지 실제 소비는 EXPENSE
+- transactionType: "EXPENSE" / "TRANSFER" / "INCOME"
+    돈이 들어온 것(입금·급여·용돈·이자·환급·장학금)은 INCOME,
+    이체·송금·ATM출금·카드대금·월세처럼 나간 자금 이동은 TRANSFER,
+    나머지 실제 소비는 EXPENSE. 입금/출금 컬럼이 있으면 그 방향을 우선하세요.
 - needsReview: true 또는 false
     상호명 자리에 가맹점이 아니라 **사람 이름(예금주)**만 있어서 무엇을 샀는지
     알 수 없는 경우 true. (예: "김OO", "홍길동", "박○○")

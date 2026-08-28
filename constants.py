@@ -7,12 +7,14 @@
 
 # ─── 거래 유형 (docs/05 §8) ───
 TRANSACTION_TYPE_EXPENSE = "EXPENSE"    # 실제 소비. 분석에 포함.
-TRANSACTION_TYPE_TRANSFER = "TRANSFER"  # 이체·송금. 저장하되 모든 분석·총지출에서 제외.
+TRANSACTION_TYPE_TRANSFER = "TRANSFER"  # 이체·송금(자금 이동). 저장하되 모든 분석·총지출에서 제외.
+TRANSACTION_TYPE_INCOME = "INCOME"      # 수입(입금·용돈·급여·이자). 달력에 +초록 표시. 분석 제외.
 
 # 검증 등에서 사용할 허용 집합 (순서 의미 없음)
 TRANSACTION_TYPES = (
     TRANSACTION_TYPE_EXPENSE,
     TRANSACTION_TYPE_TRANSFER,
+    TRANSACTION_TYPE_INCOME,
 )
 
 # ─── 카테고리 코드 (docs/05 §4) ───

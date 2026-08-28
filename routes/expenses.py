@@ -235,6 +235,43 @@ def _parse_id(raw_id: str) -> tuple[int | None, JSONResponse | None]:
         return None, _error("INVALID_ID", "id는 정수여야 합니다.", 400)
 
 
+@router.get("/daily")
+def daily_summary(month=Query(None, description="조회 월 (YYYY-MM)")):
+    """GET /api/expenses/daily?month=YYYY-MM — 달력용 날짜별 합계.
+
+    거래가 있는 날짜만 반환한다. 합계는 서버가 계산한다(프론트 재계산 금지 원칙).
+    이 라우트는 /{expense_id} 보다 반드시 먼저 등록되어야 한다
+    ("daily"가 id로 잡히면 400이 난다).
+    """
+    if not isinstance(month, str) or not _MONTH_RE.match(month):
+        return _error("INVALID_MONTH", "month는 YYYY-MM 형식이어야 합니다.", 400)
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT date,
+                      COALESCE(SUM(CASE WHEN transaction_type = 'EXPENSE'  THEN amount END), 0) AS expense,
+                      COALESCE(SUM(CASE WHEN transaction_type = 'INCOME'   THEN amount END), 0) AS income,
+                      COALESCE(SUM(CASE WHEN transaction_type = 'TRANSFER' THEN amount END), 0) AS transfer,
+                      COUNT(*) AS cnt
+                 FROM expenses
+                WHERE substr(date, 1, 7) = ?
+                GROUP BY date ORDER BY date""",
+            (month,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return {"success": True, "data": {
+        "month": month,
+        "days": [
+            {"date": r["date"], "expense": r["expense"], "income": r["income"],
+             "transfer": r["transfer"], "count": r["cnt"]}
+            for r in rows
+        ],
+    }}
+
+
 @router.post("/skip-review")
 def skip_review(month=Query(None, description="정리를 건너뛸 월 (YYYY-MM)")):
     """POST /api/expenses/skip-review?month=YYYY-MM — 미분류 정리를 일괄 건너뛴다.

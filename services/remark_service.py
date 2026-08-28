@@ -1,7 +1,8 @@
 """행방불명 지출 논평 — '이 돈 어디 갔는지 모르겠다'가 많을 때 붙는 한마디
 
 무엇을 세는가:
-  그 달 전체 거래(소비+이체) 중 **카테고리가 OTHER인 금액**.
+  그 달 소비+이체(INCOME 제외) 중 **카테고리가 OTHER인 금액**.
+  수입(용돈·급여)은 '행방불명 지출'이 아니므로 세지 않는다.
   상호명 대신 예금주 이름만 찍힌 송금이 여기 들어온다. 미분류 정리를 건너뛰면 더 커진다.
 
 왜 이체까지 세는가:
@@ -32,7 +33,7 @@ def _collect(month: str) -> dict | None:
                  COALESCE(SUM(CASE WHEN category = ? THEN amount ELSE 0 END), 0) AS unknown_amount,
                  COALESCE(SUM(CASE WHEN category = ? THEN 1 ELSE 0 END), 0) AS unknown_count
                FROM expenses
-               WHERE substr(date, 1, 7) = ?""",
+               WHERE substr(date, 1, 7) = ? AND transaction_type != 'INCOME'""",
             (CATEGORY_OTHER, CATEGORY_OTHER, month),
         ).fetchone()
     finally:
