@@ -92,7 +92,7 @@ def get_analysis(
             # 그 달 지출이 0건이면 None이며, 프론트는 이 경우 영역을 숨긴다.
             "benchmark": build_benchmark(stats),
             # '기타'가 많을 때만 붙는 논평 (미분류 정리를 건너뛰면 커진다). 낮으면 null.
-            "remark": build_remark(stats),
+            "remark": build_remark(month),
             # 상호명 대신 예금주 이름만 있어 사용자가 정리해야 하는 건수
             "needsReviewCount": context["needsReviewCount"],
         }
