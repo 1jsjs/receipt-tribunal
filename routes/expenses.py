@@ -162,3 +162,89 @@ def list_expenses(month=Query(None)):
 
     data = [_row_to_expense(row) for row in rows]
     return {"success": True, "data": data}
+
+
+def _parse_id(raw_id: str) -> tuple[int | None, JSONResponse | None]:
+    """경로 변수 id를 정수로 변환한다. 실패 시 400 (FastAPI 422 함정 회피).
+
+    expense_id: int로 받으면 정수가 아닌 값에 FastAPI가 422를 내므로,
+    문자열로 받아 여기서 직접 변환한다.
+    """
+    try:
+        return int(raw_id), None
+    except (ValueError, TypeError):
+        return None, _error("INVALID_ID", "id는 정수여야 합니다.", 400)
+
+
+# ─── 경로 변수 라우트 (@router.get("") 뒤에 등록 — 고정 경로가 먼저 매칭되도록) ───
+
+@router.get("/{expense_id}")
+def get_expense(expense_id: str):
+    """GET /api/expenses/{id} — 단건 조회. 없으면 404. (docs/05 §9)"""
+    parsed_id, error = _parse_id(expense_id)
+    if error is not None:
+        return error
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM expenses WHERE id = ?", (parsed_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return _error("NOT_FOUND", "해당 id의 소비 내역이 없습니다.", 404)
+
+    return {"success": True, "data": _row_to_expense(row)}
+
+
+@router.put("/{expense_id}")
+def update_expense(expense_id: str, body=Body(None)):
+    """PUT /api/expenses/{id} — 수정 후 수정된 Expense 반환. (docs/05 §9)
+
+    요청 바디는 POST와 동일. created_at은 건드리지 않고 updated_at만 갱신한다.
+    대상 없으면 404, 바디 검증 실패면 400.
+    """
+    parsed_id, error = _parse_id(expense_id)
+    if error is not None:
+        return error
+
+    # 바디 검증 (B004 헬퍼 재사용)
+    validated, error = _validate_expense_body(body)
+    if error is not None:
+        return error
+
+    conn = get_connection()
+    try:
+        # 대상 존재 확인
+        existing = conn.execute(
+            "SELECT id FROM expenses WHERE id = ?", (parsed_id,)
+        ).fetchone()
+        if existing is None:
+            return _error("NOT_FOUND", "해당 id의 소비 내역이 없습니다.", 404)
+
+        # updated_at만 갱신, created_at은 손대지 않음
+        conn.execute(
+            """UPDATE expenses
+               SET store_name = ?, date = ?, amount = ?, category = ?,
+                   transaction_type = ?, updated_at = datetime('now')
+               WHERE id = ?""",
+            (
+                validated["store_name"],
+                validated["date"],
+                validated["amount"],
+                validated["category"],
+                validated["transaction_type"],
+                parsed_id,
+            ),
+        )
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT * FROM expenses WHERE id = ?", (parsed_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    return {"success": True, "data": _row_to_expense(row)}
