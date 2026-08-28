@@ -4,7 +4,7 @@
 """
 import re
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
 from db import get_connection
@@ -14,6 +14,9 @@ router = APIRouter(prefix="/api/expenses", tags=["expenses"])
 
 # 날짜 형식 검증: YYYY-MM-DD (docs/05 §10)
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# 월 형식 검증: YYYY-MM, 월은 01~12만 허용 (2026-13/2026-00 거부)
+_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 def _error(code: str, message: str, status_code: int) -> JSONResponse:
@@ -131,3 +134,31 @@ def create_expense(body=Body(None)):
         status_code=201,
         content={"success": True, "data": _row_to_expense(row)},
     )
+
+
+@router.get("")
+def list_expenses(month=Query(None)):
+    """GET /api/expenses?month=YYYY-MM — 해당 월 Expense 배열 반환 (docs/05 §9)
+
+    month는 Query(None)으로 받아 직접 검증한다 (Query(...)로 필수 지정하면 422가 나감).
+    TRANSFER도 포함해 반환한다 (목록에는 이체도 표시, 분석에서만 제외).
+    """
+    # month 형식 검증 (실재하는 월만 허용)
+    if not isinstance(month, str) or not _MONTH_RE.match(month):
+        return _error("INVALID_MONTH", "month는 YYYY-MM 형식이어야 합니다.", 400)
+
+    conn = get_connection()
+    try:
+        # 월 필터는 문자열 앞 7자리 비교 (datetime 파싱 금지 — UTC로 하루 밀림 방지)
+        # 정렬: 날짜 내림차순, 같은 날짜면 최근 입력(id 큰 것)이 위로
+        rows = conn.execute(
+            """SELECT * FROM expenses
+               WHERE substr(date, 1, 7) = ?
+               ORDER BY date DESC, id DESC""",
+            (month,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    data = [_row_to_expense(row) for row in rows]
+    return {"success": True, "data": data}
