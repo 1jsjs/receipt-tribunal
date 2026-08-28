@@ -17,6 +17,9 @@ from datetime import datetime
 
 from constants import (
     CATEGORIES,
+    # _needs_review()가 미분류 판정에 쓴다 (키워드 규칙은 category_rules.py로 이동했지만
+    # OTHER 비교는 여기 남아 있으므로 import를 지우면 안 된다)
+    CATEGORY_OTHER,
     TRANSACTION_TYPE_EXPENSE,
     TRANSACTION_TYPE_TRANSFER,
     TRANSACTION_TYPES,
