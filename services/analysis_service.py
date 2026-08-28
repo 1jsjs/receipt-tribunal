@@ -166,3 +166,44 @@ def get_month_context(month: str) -> dict:
         "defendant": row["defendant"] if row else DEFAULT_DEFENDANT,
         "needsReviewCount": needs_review,
     }
+
+
+def fetch_month_expenses(month: str) -> list[dict]:
+    """해당 월의 EXPENSE 행 원본을 반환한다 (TRANSFER 제외).
+
+    판결문 생성 시 개별 거래의 plea(피고인 변론 — N빵·더치페이 등)를 참고하는 용도.
+    plea 컬럼이 없는 구버전 DB에서도 죽지 않도록 방어적으로 조회한다.
+
+    Returns
+    -------
+    list[dict]  [{"storeName", "date", "amount", "category", "plea"}, ...]
+    """
+    conn = get_connection()
+    try:
+        has_plea = any(
+            r["name"] == "plea" for r in conn.execute("PRAGMA table_info(expenses)")
+        )
+        plea_col = "plea" if has_plea else "'' AS plea"
+        rows = conn.execute(
+            f"""
+            SELECT store_name, date, amount, category, {plea_col}
+            FROM expenses
+            WHERE transaction_type = 'EXPENSE'
+              AND date LIKE ? || '%'
+            ORDER BY date ASC, id ASC
+            """,
+            (month + "-",),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [
+        {
+            "storeName": r["store_name"],
+            "date": r["date"],
+            "amount": r["amount"],
+            "category": r["category"],
+            "plea": r["plea"] or "",
+        }
+        for r in rows
+    ]

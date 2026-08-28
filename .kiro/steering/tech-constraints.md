@@ -8,9 +8,9 @@ inclusion: always
 - Frontend: 순수 HTML + CSS + JavaScript (React 등 프레임워크 금지, 빌드 없음)
 - Backend: FastAPI (Python) + SQLite (내장 sqlite3. RDS·별도 DB 서버 금지)
 - AI: Bedrock Claude — **호출 지점은 아래 2곳뿐이다. 새로 늘리지 말 것.**
-  1. 판결문 "이유" 산문 생성 (services/verdict_service.py)
+  1. 판결문 "이유(reasoning)+형량(sentence)" 생성 — 호출 1회로 JSON 반환 (services/verdict_service.py)
   2. 업로드한 지출내역 파일의 표준 JSON 정규화·카테고리 분류 (services/parse_service.py)
-  죄명·형량·소비유형 판정은 룰/템플릿이다. 두 곳 모두 실패 시 폴백이 있어 빈 화면이 되지 않는다.
+  죄명·주문·소비유형 판정은 룰/템플릿이다. 두 곳 모두 실패 시 폴백이 있어 빈 화면이 되지 않는다.
 - 배포: EC2 + nohup + 포트 8501 (현재 uvicorn으로 구동 중. v1 streamlit은 종료됨)
 
 ## 환경 제약 (어기면 AccessDenied/접속 불가 — 실측 확인된 사실)

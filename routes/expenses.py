@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
-from db import get_connection, DEFAULT_DEFENDANT, DEFENDANT_MAX, MEMO_MAX
+from db import get_connection, DEFAULT_DEFENDANT, DEFENDANT_MAX, MEMO_MAX, PLEA_MAX
 from constants import CATEGORIES, TRANSACTION_TYPES
 
 router = APIRouter(prefix="/api/expenses", tags=["expenses"])
@@ -42,6 +42,8 @@ def _row_to_expense(row) -> dict:
         "transactionType": row["transaction_type"],
         "defendant": row["defendant"],
         "memo": row["memo"],
+        # 피고인 변론 — 항변하면 판결문 이유·정상참작에 반영된다 (판결 쪽, 최대 200자).
+        "plea": row["plea"] if "plea" in row.keys() else "",
         # 업로드 시 상호명 대신 예금주 이름만 있던 건. 사용자가 메모·카테고리를 채워야 한다.
         "needsReview": bool(row["needs_review"]),
         "createdAt": row["created_at"],
@@ -123,6 +125,17 @@ def _validate_expense_body(body: dict) -> tuple[dict | None, JSONResponse | None
         if len(memo) > MEMO_MAX:
             return None, _error("INVALID_MEMO", f"memo는 최대 {MEMO_MAX}자입니다.", 400)
 
+    # plea(피고인 변론): 선택 항목, 200자 이내. 판결문 이유·정상참작(N빵 등) 근거로 쓰인다.
+    plea = body.get("plea")
+    if plea is None:
+        plea = ""
+    elif not isinstance(plea, str):
+        return None, _error("INVALID_PLEA", "plea는 문자열이어야 합니다.", 400)
+    else:
+        plea = plea.strip()
+        if len(plea) > PLEA_MAX:
+            return None, _error("INVALID_PLEA", f"plea는 최대 {PLEA_MAX}자입니다.", 400)
+
     return {
         "store_name": store_name,
         "date": date,
@@ -131,6 +144,7 @@ def _validate_expense_body(body: dict) -> tuple[dict | None, JSONResponse | None
         "transaction_type": transaction_type,
         "defendant": defendant,
         "memo": memo,
+        "plea": plea,
     }, None
 
 
@@ -151,8 +165,8 @@ def create_expense(body=Body(None)):
         cursor = conn.execute(
             """INSERT INTO expenses
                  (store_name, date, amount, category, transaction_type,
-                  defendant, memo, needs_review, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))""",
+                  defendant, memo, plea, needs_review, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))""",
             (
                 validated["store_name"],
                 validated["date"],
@@ -161,6 +175,7 @@ def create_expense(body=Body(None)):
                 validated["transaction_type"],
                 validated["defendant"],
                 validated["memo"],
+                validated["plea"],
             ),
         )
         conn.commit()
@@ -271,7 +286,7 @@ def update_expense(expense_id: str, body=Body(None)):
         conn.execute(
             """UPDATE expenses
                SET store_name = ?, date = ?, amount = ?, category = ?,
-                   transaction_type = ?, defendant = ?, memo = ?,
+                   transaction_type = ?, defendant = ?, memo = ?, plea = ?,
                    needs_review = 0, updated_at = datetime('now')
                WHERE id = ?""",
             (
@@ -282,6 +297,7 @@ def update_expense(expense_id: str, body=Body(None)):
                 validated["transaction_type"],
                 validated["defendant"],
                 validated["memo"],
+                validated["plea"],
                 parsed_id,
             ),
         )

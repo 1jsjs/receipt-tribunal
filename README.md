@@ -22,7 +22,7 @@ _2026 호남권 SW중심대학 AWS Kiro 해커톤 — 7조_
 | Frontend | 순수 HTML + CSS + JavaScript (프레임워크·빌드 없음) |
 | Backend | FastAPI (Python) |
 | DB | SQLite (파일 1개) |
-| AI | **AWS Bedrock Claude** — 판결문 "이유" 산문 생성 (실패 시 템플릿 폴백) |
+| AI | **AWS Bedrock Claude** — 판결문 "이유+형량" 생성 (실패 시 템플릿 폴백) |
 | 배포 | AWS EC2 + nohup (포트 8501) |
 | 개발 도구 | **AWS Kiro** — 팀이 작성한 설계 문서(docs/)를 기준으로 구현 |
 

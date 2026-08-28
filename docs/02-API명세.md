@@ -24,11 +24,13 @@
   생략하면 서버가 "익명의 자취생"으로 채운다. **조회를 이 값으로 거르지 않는다**(판결문 표시용).
 - `needsReview`: 상호명 대신 예금주 이름만 있어 카테고리를 정할 수 없는 건이면 true.
   업로드 응답의 `needsReviewCount`로 몇 건인지 알 수 있다.
-- `memo`: 미분류 건에 사용자가 붙이는 메모. **10자 이내**, 초과 시 400.
+- `memo`: 미분류 건에 사용자가 붙이는 정리용 메모(입력 쪽). **10자 이내**, 초과 시 400.
 - 미분류 정리는 4번(PUT)으로 보낸다. **PUT이 성공하면 needsReview가 자동으로 false가 된다.**
+- `plea`: 피고인 변론(판결 쪽). 선택, **200자 이내**, 초과 시 400(`INVALID_PLEA`).
+  거래에 "친구 4명 더치페이"처럼 적으면 판결문 이유에 N빵 정상참작으로 반영된다.
 
 ## 필드명 계약 (RULE 002~005 — 임의 변경 금지)
-- camelCase: `storeName` `amount` `transactionType` `createdAt` `consumerType` `reactionMessage` `defendant` `memo` `needsReview` `needsReviewCount`
+- camelCase: `storeName` `amount` `transactionType` `createdAt` `consumerType` `reactionMessage` `defendant` `memo` `plea` `needsReview` `needsReviewCount`
 - 카테고리 코드 6종: `DELIVERY_DINING` `CONVENIENCE_STORE` `CAFE_SNACK` `GROCERIES` `SHOPPING_HOBBY` `OTHER`
 - 거래 유형: `EXPENSE` `TRANSFER`
 - 금액은 숫자(18000) — "18,000원" 문자열 금지

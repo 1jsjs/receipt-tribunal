@@ -9,7 +9,8 @@ DB_PATH = DATA_DIR / "database.sqlite"
 # 이 값 덕분에 defendant를 모르는 기존 호출도 그대로 동작한다(시드 데이터도 이 이름).
 DEFAULT_DEFENDANT = "익명의 자취생"
 
-MEMO_MAX = 10       # 미분류 내역에 붙이는 메모 길이 제한
+MEMO_MAX = 10       # 미분류 내역에 붙이는 메모 길이 제한 (입력 쪽)
+PLEA_MAX = 200      # 피고인 변론 길이 제한 (판결 쪽 — N빵·정상참작 근거)
 DEFENDANT_MAX = 10  # 피고인 이름 길이 제한 (사용자가 직접 입력)
 
 _SCHEMA = """
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   transaction_type TEXT NOT NULL,
   defendant TEXT NOT NULL DEFAULT '',
   memo TEXT NOT NULL DEFAULT '',
+  plea TEXT NOT NULL DEFAULT '',
   needs_review INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -33,6 +35,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 _ADDED_COLUMNS = [
     ("defendant", f"TEXT NOT NULL DEFAULT '{DEFAULT_DEFENDANT}'"),
     ("memo", "TEXT NOT NULL DEFAULT ''"),
+    ("plea", "TEXT NOT NULL DEFAULT ''"),
     ("needs_review", "INTEGER NOT NULL DEFAULT 0"),
 ]
 

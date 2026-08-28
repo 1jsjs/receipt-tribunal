@@ -34,7 +34,7 @@ inclusion: always
 | POST | /api/import | multipart: **file** + (선택) **defendant** | {imported,parsed,defendant,needsReviewCount,source,rawRowCount,items,warning} |
 
 Expense = {id, storeName, date, amount, category, transactionType,
-           defendant, memo, needsReview, createdAt, updatedAt}
+           defendant, memo, plea, needsReview, createdAt, updatedAt}
 
 ## 피고인 이름 (defendant)
 - 사용자가 직접 입력한다. **10자 이내**, 넘기면 400(`INVALID_DEFENDANT`).
@@ -56,6 +56,13 @@ Expense = {id, storeName, date, amount, category, transactionType,
 - 정리는 `PUT /api/expenses/{id}`로 보낸다. **PUT이 성공하면 서버가 needsReview를 자동으로
   false로 내린다.** 프론트가 따로 해제 요청을 보낼 필요 없다.
 - 수동 입력으로 만든 건은 항상 `needsReview: false`다.
+
+## 피고인 변론 (plea) — memo와 다른 필드다
+- `memo`(10자, 입력 쪽)는 미분류 내역이 "뭐였는지" 적는 정리용이다.
+- `plea`(**200자 이내**, 넘기면 400 `INVALID_PLEA`, 판결 쪽)는 사용자의 항변이다.
+  거래에 "친구 4명 더치페이"처럼 적으면 그 달 분석 시 **N빵 정상참작**으로 잡혀
+  판결문 `judgment.reasoning`과 `judgment.evidence`("정상참작: …")에 반영된다.
+- POST/PUT `/api/expenses` 바디의 선택 필드. 두 입력 칸은 화면에서도 분리한다.
 
 ## 카테고리 — 프론트가 라벨 매핑을 직접 가져야 한다
 **GET /api/expenses 응답에는 한글 라벨이 없다.** `category: "DELIVERY_DINING"` 코드만 온다.
