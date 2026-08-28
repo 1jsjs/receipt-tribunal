@@ -1,0 +1,45 @@
+"""데이터 계약 상수 — TASK-B003
+
+정의 기준: docs/05 §4(데이터 계약)·§7(카테고리 라벨)·§8(거래 유형).
+카테고리 코드/순서/라벨과 거래 유형은 이 파일이 백엔드의 단일 출처(single source of truth)다.
+값·순서를 임의로 바꾸지 말 것 (RULE 003/004).
+"""
+
+# ─── 거래 유형 (docs/05 §8) ───
+TRANSACTION_TYPE_EXPENSE = "EXPENSE"    # 실제 소비. 분석에 포함.
+TRANSACTION_TYPE_TRANSFER = "TRANSFER"  # 이체·송금. 저장하되 모든 분석·총지출에서 제외.
+
+# 검증 등에서 사용할 허용 집합 (순서 의미 없음)
+TRANSACTION_TYPES = (
+    TRANSACTION_TYPE_EXPENSE,
+    TRANSACTION_TYPE_TRANSFER,
+)
+
+# ─── 카테고리 코드 (docs/05 §4) ───
+CATEGORY_DELIVERY_DINING = "DELIVERY_DINING"
+CATEGORY_CONVENIENCE_STORE = "CONVENIENCE_STORE"
+CATEGORY_CAFE_SNACK = "CAFE_SNACK"
+CATEGORY_GROCERIES = "GROCERIES"
+CATEGORY_SHOPPING_HOBBY = "SHOPPING_HOBBY"
+CATEGORY_OTHER = "OTHER"
+
+# 카테고리 고정 순서 (docs/05 §11 topCategory 동률 시 우선순위와 동일)
+# DELIVERY_DINING → CONVENIENCE_STORE → CAFE_SNACK → GROCERIES → SHOPPING_HOBBY → OTHER
+CATEGORIES = (
+    CATEGORY_DELIVERY_DINING,
+    CATEGORY_CONVENIENCE_STORE,
+    CATEGORY_CAFE_SNACK,
+    CATEGORY_GROCERIES,
+    CATEGORY_SHOPPING_HOBBY,
+    CATEGORY_OTHER,
+)
+
+# 코드 → 화면 라벨 (docs/05 §7)
+CATEGORY_LABELS = {
+    CATEGORY_DELIVERY_DINING: "배달·외식",
+    CATEGORY_CONVENIENCE_STORE: "편의점",
+    CATEGORY_CAFE_SNACK: "카페·간식",
+    CATEGORY_GROCERIES: "식재료·생필품",
+    CATEGORY_SHOPPING_HOBBY: "쇼핑·취미",
+    CATEGORY_OTHER: "기타",
+}
