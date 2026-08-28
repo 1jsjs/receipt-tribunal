@@ -138,3 +138,44 @@ def calculate_monthly_stats(month: str) -> dict:
         "topCategory": top_category,
         "categoryStats": category_stats,
     }
+
+
+def fetch_month_expenses(month: str) -> list[dict]:
+    """해당 월의 EXPENSE 행 원본을 반환한다 (TRANSFER 제외).
+
+    판결문 생성 시 개별 거래의 memo(N빵·더치페이 등)를 참고하는 용도.
+    memo 컬럼이 없는 구버전 DB에서도 죽지 않도록 방어적으로 조회한다.
+
+    Returns
+    -------
+    list[dict]  [{"storeName", "date", "amount", "category", "memo"}, ...]
+    """
+    conn = get_connection()
+    try:
+        has_memo = any(
+            r["name"] == "memo" for r in conn.execute("PRAGMA table_info(expenses)")
+        )
+        memo_col = "memo" if has_memo else "'' AS memo"
+        rows = conn.execute(
+            f"""
+            SELECT store_name, date, amount, category, {memo_col}
+            FROM expenses
+            WHERE transaction_type = 'EXPENSE'
+              AND date LIKE ? || '%'
+            ORDER BY date ASC, id ASC
+            """,
+            (month + "-",),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [
+        {
+            "storeName": r["store_name"],
+            "date": r["date"],
+            "amount": r["amount"],
+            "category": r["category"],
+            "memo": r["memo"] or "",
+        }
+        for r in rows
+    ]

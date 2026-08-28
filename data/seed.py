@@ -22,15 +22,16 @@ from db import get_connection, init_db
 
 SEED_MONTHS = ["2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
 
-# (store_name, date, amount, category, transaction_type)
-SEED_DATA: list[tuple[str, str, int, str, str]] = [
+# (store_name, date, amount, category, transaction_type[, memo])
+# memo는 선택 — N빵·더치페이 메모가 있으면 판결문에서 정상참작으로 반영된다.
+SEED_DATA: list[tuple] = [
     # ═══════════════════════════════════════════════════════════════
     # 2026-08: DELIVERY_APP — 배달 50%, 9건 EXPENSE, 소액 1건 (11%)
     # 룰 점검: count=9 <10 → 티끌 탈락 / 편의점 1건 <8 → 편의점 탈락
     # ═══════════════════════════════════════════════════════════════
     ("배달의민족", "2026-08-02", 32000, "DELIVERY_DINING", "EXPENSE"),
     ("요기요", "2026-08-05", 28000, "DELIVERY_DINING", "EXPENSE"),
-    ("쿠팡이츠", "2026-08-09", 45000, "DELIVERY_DINING", "EXPENSE"),
+    ("쿠팡이츠", "2026-08-09", 45000, "DELIVERY_DINING", "EXPENSE", "친구 4명 더치페이"),
     ("교촌치킨", "2026-08-14", 38000, "DELIVERY_DINING", "EXPENSE"),
     ("피자알볼로", "2026-08-20", 35000, "DELIVERY_DINING", "EXPENSE"),
     ("CU 강남점", "2026-08-07", 4500, "CONVENIENCE_STORE", "EXPENSE"),
@@ -170,11 +171,12 @@ def run_seed():
     # 삽입
     inserted = 0
     for row in SEED_DATA:
-        store_name, date, amount, category, tx_type = row
+        store_name, date, amount, category, tx_type, *rest = row
+        memo = rest[0] if rest else ""
         conn.execute(
-            """INSERT INTO expenses (store_name, date, amount, category, transaction_type, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            (store_name, date, amount, category, tx_type),
+            """INSERT INTO expenses (store_name, date, amount, category, transaction_type, memo, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            (store_name, date, amount, category, tx_type, memo),
         )
         inserted += 1
 

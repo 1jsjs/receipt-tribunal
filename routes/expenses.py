@@ -22,6 +22,7 @@ _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 STORE_NAME_MAX = 100  # docs/05 §10
+MEMO_MAX = 200        # 선택 입력 — 판결문 정상참작(N빵 등) 근거로 사용
 
 
 # ─────────────────────────── 공통 헬퍼 ───────────────────────────
@@ -42,6 +43,7 @@ def _to_expense(row) -> dict:
         "amount": row["amount"],
         "category": row["category"],
         "transactionType": row["transaction_type"],
+        "memo": row["memo"] if "memo" in row.keys() else "",
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -90,12 +92,23 @@ def _validate(body) -> tuple[dict | None, JSONResponse | None]:
     if transaction_type not in TRANSACTION_TYPES:
         return None, _error(400, "VALIDATION_ERROR", "transactionType은 EXPENSE 또는 TRANSFER여야 합니다.")
 
+    # memo — 선택. 없으면 빈 문자열, 문자열 아니면 거부, 최대 200자
+    memo = body.get("memo", "")
+    if memo is None:
+        memo = ""
+    if not isinstance(memo, str):
+        return None, _error(400, "VALIDATION_ERROR", "memo는 문자열이어야 합니다.")
+    memo = memo.strip()
+    if len(memo) > MEMO_MAX:
+        return None, _error(400, "VALIDATION_ERROR", f"memo는 최대 {MEMO_MAX}자입니다.")
+
     return {
         "storeName": store_name,
         "date": date_value,
         "amount": amount,
         "category": category,
         "transactionType": transaction_type,
+        "memo": memo,
     }, None
 
 
@@ -114,9 +127,10 @@ def create_expense(body=Body(...)):
     conn = get_connection()
     try:
         cur = conn.execute(
-            """INSERT INTO expenses (store_name, date, amount, category, transaction_type, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            (data["storeName"], data["date"], data["amount"], data["category"], data["transactionType"]),
+            """INSERT INTO expenses (store_name, date, amount, category, transaction_type, memo, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            (data["storeName"], data["date"], data["amount"], data["category"],
+             data["transactionType"], data["memo"]),
         )
         conn.commit()
         row = _fetch_one(conn, cur.lastrowid)
@@ -177,10 +191,10 @@ def update_expense(expense_id: int, body=Body(...)):
         conn.execute(
             """UPDATE expenses
                   SET store_name = ?, date = ?, amount = ?, category = ?,
-                      transaction_type = ?, updated_at = datetime('now')
+                      transaction_type = ?, memo = ?, updated_at = datetime('now')
                 WHERE id = ?""",
             (data["storeName"], data["date"], data["amount"], data["category"],
-             data["transactionType"], expense_id),
+             data["transactionType"], data["memo"], expense_id),
         )
         conn.commit()
         row = _fetch_one(conn, expense_id)

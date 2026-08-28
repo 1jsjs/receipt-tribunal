@@ -13,10 +13,18 @@ CREATE TABLE IF NOT EXISTS expenses (
   amount INTEGER NOT NULL,
   category TEXT NOT NULL,
   transaction_type TEXT NOT NULL,
+  memo TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 """
+
+
+def _migrate(conn) -> None:
+    """구버전 DB 호환: 누락 컬럼을 ALTER TABLE로 채운다 (기존 데이터 보존)."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(expenses)")}
+    if "memo" not in cols:
+        conn.execute("ALTER TABLE expenses ADD COLUMN memo TEXT NOT NULL DEFAULT ''")
 
 
 def get_connection() -> sqlite3.Connection:
@@ -31,5 +39,6 @@ def init_db():
     """테이블 생성 (CREATE IF NOT EXISTS — 기존 데이터 보존)"""
     conn = get_connection()
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     conn.commit()
     conn.close()
