@@ -17,16 +17,11 @@ from datetime import datetime
 
 from constants import (
     CATEGORIES,
-    CATEGORY_CAFE_SNACK,
-    CATEGORY_CONVENIENCE_STORE,
-    CATEGORY_DELIVERY_DINING,
-    CATEGORY_GROCERIES,
-    CATEGORY_OTHER,
-    CATEGORY_SHOPPING_HOBBY,
     TRANSACTION_TYPE_EXPENSE,
     TRANSACTION_TYPE_TRANSFER,
     TRANSACTION_TYPES,
 )
+from services.category_rules import classify_by_keyword, refine_categories
 
 MODEL_ID = "global.anthropic.claude-sonnet-5"
 
@@ -171,31 +166,6 @@ def extract_rows(filename: str, content: bytes) -> list[dict]:
 
 # ─────────────────── 2단계: 규칙 기반 정규화 (폴백) ───────────────────
 
-# 상호명 키워드 → 카테고리. 위에서부터 먼저 걸리는 것을 채택한다.
-_CATEGORY_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
-    (CATEGORY_DELIVERY_DINING, (
-        "배달", "배민", "쿠팡이츠", "요기요", "땡겨요", "식당", "국밥", "김밥", "치킨", "피자",
-        "분식", "음식", "마라", "버거", "맥도날드", "롯데리아", "서브웨이", "돈까스", "칼국수",
-        "쌀국수", "초밥", "회집", "곱창", "삼겹", "떡볶이", "food",
-    )),
-    (CATEGORY_CONVENIENCE_STORE, (
-        "gs25", "cu ", "씨유", "세븐일레븐", "7-eleven", "이마트24", "미니스톱", "편의점", "storyway",
-    )),
-    (CATEGORY_CAFE_SNACK, (
-        "카페", "커피", "스타벅스", "starbucks", "투썸", "이디야", "메가커피", "컴포즈", "빽다방",
-        "파리바게", "뚜레쥬르", "베이커리", "디저트", "아이스크림", "배스킨", "공차", "cafe",
-    )),
-    (CATEGORY_GROCERIES, (
-        "마트", "이마트", "홈플러스", "롯데마트", "하나로", "농협", "정육", "청과", "수산",
-        "슈퍼", "생협", "한살림", "식자재",
-    )),
-    (CATEGORY_SHOPPING_HOBBY, (
-        "무신사", "쿠팡", "11번가", "지마켓", "옥션", "올리브영", "다이소", "교보문고", "알라딘",
-        "cgv", "메가박스", "롯데시네마", "영화", "넷플릭스", "스팀", "steam", "게임", "문구",
-        "화장품", "의류", "패션",
-    )),
-]
-
 # 이체·송금으로 볼 키워드
 _TRANSFER_KEYWORDS = (
     "이체", "송금", "atm", "출금", "입금", "계좌", "자동납부", "카드대금", "대출", "월세", "보증금",
@@ -244,11 +214,8 @@ def _norm_amount(value: str) -> int | None:
 
 
 def _guess_category(store_name: str) -> str:
-    lowered = store_name.lower()
-    for category, keywords in _CATEGORY_KEYWORDS:
-        if any(k in lowered for k in keywords):
-            return category
-    return CATEGORY_OTHER
+    """상호명 키워드 규칙 (services/category_rules.py 단일 출처)."""
+    return classify_by_keyword(store_name)
 
 
 def _guess_transaction_type(store_name: str, row_text: str) -> str:
@@ -383,6 +350,9 @@ _NORMALIZE_INSTRUCTION = """당신은 한국 은행·카드사의 지출내역 �
 - 거래로 볼 수 없는 행(합계, 소계, 안내문, 빈 행)은 결과에서 제외하세요.
 - 날짜나 금액을 알 수 없는 행도 제외하세요.
 - 카테고리는 상호명을 보고 판단하세요. 애매하면 OTHER를 쓰세요.
+- 결제대행(PG)사 명칭만 있고 실제 가맹점을 알 수 없으면(네이버페이, 카카오페이,
+  토스페이, 이니시스, KCP, 나이스페이 등) category는 OTHER로 두세요.
+- 상호명에 지점·법인 형태가 붙어도(㈜, (주), ~점) 핵심 브랜드명으로 판단하세요.
 - 설명·주석·마크다운 없이 JSON 배열만 출력하세요. 배열 외의 텍스트를 쓰지 마세요."""
 
 
@@ -461,17 +431,7 @@ def _sanitize(items: list) -> list[dict]:
     return cleaned
 
 
-def normalize(raw_rows: list[dict]) -> tuple[list[dict], str]:
-    """원시 행 → 표준 거래 리스트. (결과, 사용한 방식) 을 돌려준다.
-
-    MOCK_AI=1이거나 Bedrock이 실패하면 규칙 기반 폴백을 쓴다. 어떤 경우에도
-    예외를 밖으로 던지지 않는다 (업로드가 통째로 실패하면 안 된다).
-    """
-    if not raw_rows:
-        return [], "empty"
-
-    rows = raw_rows[:MAX_ROWS]
-
+def _normalize_inner(rows: list[dict]) -> tuple[list[dict], str]:
     if os.environ.get("MOCK_AI") == "1":
         return _rule_normalize(rows), "rules(mock)"
 
@@ -493,6 +453,23 @@ def normalize(raw_rows: list[dict]) -> tuple[list[dict], str]:
         print(f"[parse] Bedrock 정규화 실패 → 규칙 폴백: {e}")
 
     return _rule_normalize(rows), "rules(fallback)"
+
+
+def normalize(raw_rows: list[dict]) -> tuple[list[dict], str]:
+    """원시 행 → 표준 거래 리스트. (결과, 사용한 방식) 을 돌려준다.
+
+    MOCK_AI=1이거나 Bedrock이 실패하면 규칙 기반 폴백을 쓴다. 어떤 경우에도
+    예외를 밖으로 던지지 않는다 (업로드가 통째로 실패하면 안 된다).
+
+    정규화 방식과 무관하게, 마지막에 category_rules.refine_categories로
+    OTHER·미지정 항목을 키워드+공공데이터로 한 번 더 보정한다.
+    """
+    if not raw_rows:
+        return [], "empty"
+
+    items, source = _normalize_inner(raw_rows[:MAX_ROWS])
+    refine_categories(items)
+    return items, source
 
 
 def parse_file(filename: str, content: bytes) -> dict:

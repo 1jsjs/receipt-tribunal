@@ -36,6 +36,14 @@ MOCK_AI=1 python3 -m uvicorn main:app --port 8501   # 로컬은 MOCK 모드 (AWS
 
 → http://localhost:8501 (화면) / http://localhost:8501/api/analysis?month=2026-08 (분석 API)
 
+지출내역 파일 업로드(`POST /api/import`, 엑셀·CSV·PDF)의 카테고리 분류는
+LLM/규칙이 못 맞춘 항목을 공공데이터(소상공인 상가정보)로 보정합니다. 색인은 선택 사항:
+
+```bash
+# 공공데이터포털 '소상공인시장진흥공단_상가(상권)정보' ZIP 다운로드 후 (약 1분, 색인은 커밋 안 함)
+python3 data/build_store_index.py <ZIP경로>   # → data/store_category.sqlite
+```
+
 시드는 월별로 다른 소비 유형이 나오도록 설계돼 있습니다 — 월만 바꾸면 유형 7종을 전부 볼 수 있어요:
 `2026-08` 배달앱형 · `2026-07` 티끌 과소비형 · `2026-06` 야무진 자취생형 · `2026-05` 균형 생존형 · `2026-04` 편의점형 · `2026-03` 소확행형 · `2026-02` 취향 진심형
 
